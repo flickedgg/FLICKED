@@ -15,6 +15,16 @@
 # Tech Stack:
 Website: Next.js & Tailwind
 Backend: C#, .NET
-DataBase: Postagres SQL & Redies (Cache)
-Launcher: RUST + TURI
+Database: Postagres SQL & Redies (Cache)
+Launcher: Rust + Tauri
 Anti-Cheat : Planned C++
+
+
+# Stracture:
+*Every folder contains the full system architict like how it works, how it handles security, data & requests. error codes & solutions to common errors that can appear.*
+
+**./assests/** Assests used in this project like photos, logos etc...
+**./website/** Public website source code.
+**./backend/** FLICKED backend source code.
+**./database/** FLICKED database files & settings.
+**./launcher/** FLICKED launcher source code.
