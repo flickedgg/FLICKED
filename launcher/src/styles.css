@@ -224,7 +224,9 @@ img{ display:block; }
 
 .view{ padding:28px 32px 32px; animation:view-in .28s var(--ease); }
 .view-narrow{ max-width:760px; }
-@keyframes view-in{ from{ opacity:0; transform:translateY(4px); } }
+/* pages settle down into place: content pushed above the top of a scroll box never
+   makes it scrollable, so the Play page (exactly window-high) can't flash a scrollbar */
+@keyframes view-in{ from{ opacity:0; transform:translateY(-4px); } }
 
 .view-head{ display:grid; gap:10px; margin-bottom:24px; }
 
