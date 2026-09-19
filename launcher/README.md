@@ -20,6 +20,7 @@ src/
   components/         TitleBar, Sidebar, StatusBar, MatchFlow, PartyCards, FriendsPanel, AccountCard, Icon, Elapsed
   hooks/useQueue.ts   matchmaking state (idle → searching → found → vote → connecting)
   hooks/useParty.ts   party state: members, pending invites, kick, disband
+  lib/                openExternal (links open in the browser), motion (animation preference)
   views/              Play (eager), Matches / Leaderboard / News / Settings (lazy-loaded)
   data/demo.ts        demo data until the backend exists
 src-tauri/            Rust side, window config, capabilities
@@ -30,6 +31,10 @@ src-tauri/            Rust side, window config, capabilities
 The launcher runs next to CS2, so it should cost close to nothing while idle.
 
 - No `backdrop-filter`, no animated backgrounds; animate `transform` / `opacity` only.
+  One exception: the Play friends column eases its width for 0.3s when opened or closed
+  (measured: ~20 layouts, ~17 ms of main-thread work in total, then zero while idle).
+- Animations follow Windows' *Animation effects* by default (Settings → Animations:
+  Follow Windows / On / Off, see `src/lib/motion.ts`).
 - Running clocks (`<Elapsed>`) re-render one text node, not the view.
 - Only the Play view is in the main bundle; other views load on first visit.
 - Fonts are bundled (latin subsets only) — no network at startup.

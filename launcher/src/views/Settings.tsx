@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { applyMotion, storedMotion, PREFS_KEY, type Motion } from "../lib/motion";
 import { AccountCard } from "../components/AccountCard";
 import { openExternal } from "../lib/openExternal";
 
@@ -13,7 +14,7 @@ type Prefs = {
   startWithWindows: boolean;
   minimizeToTray: boolean;
   closeOnLaunch: boolean;
-  reduceMotion: boolean;
+  motion: Motion;
 };
 
 const DEFAULTS: Prefs = {
@@ -22,15 +23,50 @@ const DEFAULTS: Prefs = {
   startWithWindows: false,
   minimizeToTray: true,
   closeOnLaunch: false,
-  reduceMotion: false,
+  motion: "system",
 };
 
-const KEY = "flicked.prefs";
 
 // kept in localStorage for now; moves to a Rust-side store once settings drive real behaviour
 function load(): Prefs {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; }
-  catch { return DEFAULTS; }
+  try {
+    const { reduceMotion: _old, ...saved } = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+    return { ...DEFAULTS, ...saved, motion: storedMotion() };
+  } catch { return DEFAULTS; }
+}
+
+// live: follows Windows' Animation effects while the page is open
+function useWindowsReducesMotion() {
+  const query = "(prefers-reduced-motion: reduce)";
+  const [reduced, setReduced] = useState(() => matchMedia(query).matches);
+  useEffect(() => {
+    const mq = matchMedia(query);
+    const on = () => setReduced(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return reduced;
+}
+
+function Choice<T extends string>({ label, hint, options, value, onChange }: {
+  label: string; hint: string; options: [T, string][]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div className="setting">
+      <span>
+        <b>{label}</b>
+        <small>{hint}</small>
+      </span>
+      <div className="seg seg-sm" role="radiogroup" aria-label={label}>
+        {options.map(([id, text]) => (
+          <button key={id} role="radio" aria-checked={value === id}
+            className={`seg-btn${value === id ? " is-on" : ""}`} onClick={() => onChange(id)}>
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Toggle({ label, hint, checked, onChange }: {
@@ -49,11 +85,12 @@ function Toggle({ label, hint, checked, onChange }: {
 
 export default function Settings() {
   const [prefs, setPrefs] = useState(load);
+  const windowsReduces = useWindowsReducesMotion();
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => setPrefs(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
-    document.documentElement.toggleAttribute("data-reduce-motion", prefs.reduceMotion);
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
+    applyMotion(prefs.motion);
   }, [prefs]);
 
   return (
@@ -101,8 +138,13 @@ export default function Settings() {
             checked={prefs.minimizeToTray} onChange={v => set("minimizeToTray", v)} />
           <Toggle label="Hide while in a match" hint="Frees memory for CS2 while you play."
             checked={prefs.closeOnLaunch} onChange={v => set("closeOnLaunch", v)} />
-          <Toggle label="Reduce motion" hint="Turns off transitions and animations."
-            checked={prefs.reduceMotion} onChange={v => set("reduceMotion", v)} />
+          <Choice
+            label="Animations"
+            hint={`Follow Windows uses your Windows animation effects setting (currently ${windowsReduces ? "off" : "on"}).`}
+            options={[["system", "Follow Windows"], ["on", "On"], ["off", "Off"]]}
+            value={prefs.motion}
+            onChange={v => set("motion", v)}
+          />
         </section>
       </div>
     </div>

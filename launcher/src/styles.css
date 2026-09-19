@@ -64,10 +64,13 @@ img{ display:block; }
 ::-webkit-scrollbar-thumb{ background:#2a2a2d; border:3px solid var(--bg); border-radius:99px; }
 ::-webkit-scrollbar-thumb:hover{ background:#3a3a3e; }
 
+/* motion: follows Windows unless the player picked On or Off (see lib/motion.ts) */
 @media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  :root:not([data-motion="on"]) *,:root:not([data-motion="on"]) *::before,:root:not([data-motion="on"]) *::after{
+    animation-duration:.001ms !important; transition-duration:.001ms !important;
+  }
 }
-[data-reduce-motion] *,[data-reduce-motion] *::before,[data-reduce-motion] *::after{
+[data-motion="off"] *,[data-motion="off"] *::before,[data-motion="off"] *::after{
   animation-duration:.001ms !important; transition-duration:.001ms !important;
 }
 
@@ -242,16 +245,36 @@ img{ display:block; }
    ============================================================ */
 
 .play{
-  display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:28px;
+  --side:320px;
+  display:grid; grid-template-columns:minmax(0,1fr) var(--side); gap:28px;
+  /* the one layout animation in the app: only runs for ~0.3s when friends open or close */
+  transition:grid-template-columns .3s var(--ease);
   /* fill the window exactly; below ~660px tall the main area scrolls instead */
   height:100%; min-height:600px;
 }
-@media (min-width:1360px){ .play{ grid-template-columns:minmax(0,1fr) 360px; } }
+@media (min-width:1360px){ .play{ --side:360px; } }
+/* friends collapsed: the party gets the width back */
+.play.is-rail{ grid-template-columns:minmax(0,1fr) 64px; }
 
 .play-main{ display:flex; flex-direction:column; gap:22px; min-width:0; }
 .play-side{ display:flex; flex-direction:column; gap:14px; min-width:0; min-height:0; }
-/* the friends list takes the full column and scrolls inside the card */
-.play-side .friends{ display:flex; flex-direction:column; flex:1; min-height:0; }
+
+/* Friends dock. The list keeps its full width and is pinned right, so while the
+   column narrows it is clipped rather than re-wrapped; list and rail crossfade on
+   opacity only, and the hidden one drops to visibility:hidden so it is not painted. */
+.friends-dock{ position:relative; flex:1; min-height:0; overflow:hidden; }
+.friends-dock > .friends,.friends-dock > .friends-rail{
+  position:absolute; top:0; right:0; bottom:0;
+  display:flex; flex-direction:column; min-height:0;
+  transition:opacity .2s var(--ease) .1s, visibility 0s;
+}
+.friends-dock > .friends{ width:var(--side); }
+.friends-dock > .friends-rail{ width:64px; }
+.friends-dock[data-open="true"] > .friends-rail,
+.friends-dock[data-open="false"] > .friends{
+  opacity:0; visibility:hidden;
+  transition:opacity .12s var(--ease), visibility 0s linear .12s;
+}
 
 /* header + mode switch ------------------------------------ */
 
@@ -277,6 +300,11 @@ img{ display:block; }
 .seg-btn.is-on small{ color:var(--primary-light); }
 .seg-btn:disabled{ cursor:default; opacity:.35; }
 .seg-btn.is-on:disabled{ opacity:.75; }
+.seg-sm{ flex:none; padding:3px; border-radius:8px; }
+.seg-sm .seg-btn{
+  height:30px; padding:0 12px; line-height:30px; border-radius:6px;
+  font-family:var(--ff-sans); font-size:12.5px; font-weight:500; text-transform:none;
+}
 
 /* launch bar ---------------------------------------------- */
 
@@ -319,7 +347,7 @@ img{ display:block; }
   --card-h:clamp(250px, 41vh, 360px);
   display:grid; grid-template-columns:1fr 1fr 1.24fr 1fr 1fr; gap:10px; align-items:end;
 }
-.cards-2{ grid-template-columns:minmax(0,210px) minmax(0,172px); justify-content:center; }
+.cards-2{ grid-template-columns:repeat(2,minmax(0,280px)); justify-content:center; gap:14px; }
 .cards-2 .pcard.is-you{ order:-1; }
 .pcard-cell{ display:grid; min-width:0; }
 
@@ -341,6 +369,8 @@ img{ display:block; }
   box-shadow:0 8px 20px rgba(0,0,0,.35);
 }
 .card-av.is-you{ background:linear-gradient(135deg,var(--primary),#8f3200); color:#0c0c0d; }
+.card-name-row{ display:flex; align-items:center; justify-content:center; gap:6px; max-width:100%; min-width:0; }
+.card-crown{ display:grid; flex:none; color:var(--primary-light); }
 .card-name{
   max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   font-size:15.5px; font-weight:600; color:var(--foreground);
@@ -363,6 +393,12 @@ img{ display:block; }
 .pcard.is-you .card-av{ width:80px; height:80px; border-radius:20px; font-size:40px; }
 .pcard.is-you .card-name{ font-size:17px; }
 .pcard.is-you .card-rating{ font-size:32px; color:var(--foreground); }
+
+/* wingman: a matched pair. Both cards get the leader's size; the leader keeps the colour and crown */
+.cards-2 .pcard{ height:calc(var(--card-h) + 36px); }
+.cards-2 .card-av{ width:80px; height:80px; border-radius:20px; font-size:40px; }
+.cards-2 .card-name{ font-size:17px; }
+.cards-2 .card-rating{ font-size:32px; }
 .pcard.is-you .card-stats{ border-top-color:rgba(246,86,0,.2); }
 
 .card-badge{
@@ -370,7 +406,6 @@ img{ display:block; }
   display:inline-flex; align-items:center; gap:6px;
   font-family:var(--ff-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--subtle);
 }
-.card-badge.is-lead{ color:var(--primary-light); }
 .card-badge .live-dot{ width:6px; height:6px; }
 
 .card-x{
@@ -400,7 +435,50 @@ img{ display:block; }
 
 /* friends -------------------------------------------------- */
 
-.friends-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px; }
+.friends-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 8px 8px 18px; }
+.friends-tools{ display:flex; align-items:center; gap:6px; }
+
+/* collapsed rail */
+.friends-rail{ align-items:center; padding:8px 0 10px; }
+.rail-toggle{
+  display:grid; place-content:center; width:40px; height:34px; border:0; border-radius:8px;
+  background:transparent; color:var(--faint); transition:color .2s, background-color .2s;
+}
+.rail-toggle:hover{ color:var(--foreground); background:rgba(255,255,255,.06); }
+.rail-count{
+  display:grid; justify-items:center; gap:2px; margin:8px 0 10px; padding-bottom:12px; width:40px;
+  border-bottom:1px solid var(--line); color:var(--subtle);
+}
+.rail-count b{ font-family:var(--ff-mono); font-size:11px; font-weight:500; color:var(--win); }
+.rail-list{
+  display:grid; justify-content:center; gap:10px; width:100%;
+  /* padding leaves room for the party rings and status dots so the scroll box doesn't clip them */
+  padding:6px 0 8px; overflow-x:hidden; overflow-y:auto; scrollbar-width:none;
+}
+.rail-list::-webkit-scrollbar{ display:none; }
+.rail-av{
+  position:relative; display:grid; place-content:center; width:38px; height:38px; border-radius:10px;
+  border:0; background:linear-gradient(135deg,#4b5566,#2a2f38);
+  font-family:var(--ff-display); font-size:18px; font-weight:700; color:var(--foreground);
+  transition:transform .15s var(--ease), box-shadow .2s;
+}
+.rail-av > i{
+  position:absolute; right:-3px; bottom:-3px; width:11px; height:11px; border-radius:50%;
+  border:2.5px solid var(--surface); background:var(--faint);
+}
+.rail-av.is-online > i{ background:var(--win); }
+.rail-av.is-ingame > i{ background:var(--primary); }
+.rail-av.is-ingame{ opacity:.55; }
+.rail-av.is-member{ box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--win); }
+.rail-av.is-pending{ box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--primary); animation:pulse 1.4s var(--ease) infinite; }
+.rail-av:disabled{ cursor:default; }
+/* hover an invitable friend: the avatar turns into an invite button */
+.rail-plus{
+  position:absolute; inset:0; display:grid; place-content:center; border-radius:10px;
+  background:var(--primary); color:#0c0c0d; opacity:0; transition:opacity .15s;
+}
+.rail-av:not(:disabled):hover{ transform:translateY(-1px); }
+.rail-av:not(:disabled):hover .rail-plus,.rail-av:focus-visible .rail-plus{ opacity:1; }
 .friends-count{ font-family:var(--ff-mono); font-size:11px; color:var(--win); }
 
 .friends-search{

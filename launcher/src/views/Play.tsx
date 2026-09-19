@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MODES } from "../data/demo";
 import type { Queue } from "../hooks/useQueue";
 import type { Party } from "../hooks/useParty";
@@ -7,14 +7,34 @@ import { FriendsPanel } from "../components/FriendsPanel";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/Icon";
 
+const FRIENDS_KEY = "flicked.friends";
+
 export function Play({ queue, party }: { queue: Queue; party: Party }) {
   const [mode, setMode] = useState(MODES[0].id);
   const searching = queue.phase === "searching";
   const current = MODES.find(m => m.id === mode)!;
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // friends list open or collapsed to a rail; remembered between sessions
+  const [friendsOpen, setFriendsOpen] = useState(() => {
+    try { return localStorage.getItem(FRIENDS_KEY) !== "rail"; } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(FRIENDS_KEY, friendsOpen ? "open" : "rail"); } catch { /* storage unavailable */ }
+  }, [friendsOpen]);
+
+  // an empty party seat opens the list and puts the cursor in search
+  const wantSearch = useRef(false);
+  useEffect(() => {
+    if (friendsOpen && wantSearch.current) { wantSearch.current = false; searchRef.current?.focus(); }
+  }, [friendsOpen]);
+  const openFriendSearch = () => {
+    if (friendsOpen) searchRef.current?.focus();
+    else { wantSearch.current = true; setFriendsOpen(true); }
+  };
+
   return (
-    <div className="view play">
+    <div className={`view play${friendsOpen ? "" : " is-rail"}`}>
       <div className="play-main">
         <header className="play-head">
           <div className="view-head">
@@ -44,7 +64,7 @@ export function Play({ queue, party }: { queue: Queue; party: Party }) {
         </header>
 
         <div className="stage">
-          <PartyCards party={party} size={current.size} locked={searching} onInvite={() => searchRef.current?.focus()} />
+          <PartyCards party={party} size={current.size} locked={searching} onInvite={openFriendSearch} />
 
           <div className={`launch${searching ? " is-searching" : ""}`}>
             {searching ? (
@@ -78,7 +98,13 @@ export function Play({ queue, party }: { queue: Queue; party: Party }) {
       </div>
 
       <aside className="play-side">
-        <FriendsPanel party={party} canInvite={!searching && party.taken < current.size} searchRef={searchRef} />
+        <FriendsPanel
+          party={party}
+          canInvite={!searching && party.taken < current.size}
+          searchRef={searchRef}
+          collapsed={!friendsOpen}
+          onToggle={() => setFriendsOpen(o => !o)}
+        />
       </aside>
     </div>
   );

@@ -5,9 +5,10 @@ import { Icon } from "./Icon";
 
 const PARTY_CODE = "FLK-7Q2X"; // demo; issued by the backend later
 
-function Seat({ name, rating, division, stats, you, badge, action }: {
+function Seat({ name, rating, division, stats, you, lead, badge, action }: {
   name: string; rating: number; division: string; stats: Stats; you?: boolean;
-  badge?: ReactNode;   // top-left label (Leader, Invite sent)
+  lead?: boolean;      // party leader: crown next to the name
+  badge?: ReactNode;   // top-left label (Invite sent)
   action?: ReactNode;  // top-right button (kick, cancel)
 }) {
   return (
@@ -16,7 +17,10 @@ function Seat({ name, rating, division, stats, you, badge, action }: {
       {action}
       <div className="card-id">
         <span className={`card-av${you ? " is-you" : ""}`} aria-hidden="true">{name[0].toUpperCase()}</span>
-        <b className="card-name">{name}</b>
+        <span className="card-name-row">
+          <b className="card-name">{name}</b>
+          {lead && <span className="card-crown" title="Party leader"><Icon name="crown" size={15} /><span className="sr-only">Party leader</span></span>}
+        </span>
         <span className="card-rating">{rating.toLocaleString()}</span>
         <span className="stat-k">{division}</span>
       </div>
@@ -62,7 +66,7 @@ export function PartyCards({ party, size, locked, onInvite }: {
 
   const leader = (
     <li key="you" className="pcard is-you">
-      <Seat {...PLAYER} you badge={<span className="card-badge is-lead"><Icon name="crown" size={11} />Leader</span>} />
+      <Seat {...PLAYER} you lead />
     </li>
   );
 
