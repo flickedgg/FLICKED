@@ -253,8 +253,8 @@ img{ display:block; }
 
 /* header + mode switch ------------------------------------ */
 
-.play-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; }
-.play-head .view-head{ margin-bottom:0; }
+.play-head,.page-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; }
+.play-head .view-head,.page-head .view-head{ margin-bottom:0; }
 
 .seg{
   display:inline-flex; gap:4px; padding:4px; border-radius:10px;
@@ -458,6 +458,88 @@ img{ display:block; }
 .delta{ text-align:right; }
 .delta.is-up{ color:var(--win); }
 .delta.is-down{ color:var(--subtle); }
+
+/* ============================================================
+   NEWS
+   ============================================================ */
+
+.page-head{ margin-bottom:22px; }
+
+/* category · date line; the square's colour tells the category apart */
+.news-meta{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--ff-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint);
+}
+.news-meta i{ width:6px; height:6px; border-radius:1.5px; background:var(--faint); }
+.news-meta.is-patch i{ background:var(--primary); }
+.news-meta.is-update i{ background:var(--slate); }
+.news-meta.is-event i{ background:#e0b341; }
+
+.news-more{ display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--foreground); }
+.news-more svg{ transition:transform .2s var(--ease); }
+button:hover > .news-more svg{ transform:translateX(3px); }
+
+/* featured: newest post, wide, hatched like the map-vote cards */
+.news-feature{
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+  width:100%; min-height:240px; padding:28px 30px 26px; border-radius:14px; text-align:left;
+  border:1px solid rgba(246,86,0,.35);
+  background:
+    repeating-linear-gradient(135deg,rgba(246,86,0,.035) 0 2px,transparent 2px 10px),
+    radial-gradient(600px 300px at 100% 100%,rgba(246,86,0,.14),transparent 70%),
+    linear-gradient(180deg,rgba(255,255,255,.03),transparent 60%),
+    var(--surface);
+  transition:border-color .2s;
+}
+.news-feature:hover{ border-color:rgba(246,86,0,.6); }
+.news-badge{
+  position:absolute; right:18px; bottom:-34px; pointer-events:none;
+  font-family:var(--ff-display); font-size:200px; font-weight:700; line-height:1; letter-spacing:-.02em;
+  color:transparent; -webkit-text-stroke:1.5px rgba(246,86,0,.28);
+}
+.news-feature-title{ position:relative; font-size:46px; line-height:.95; max-width:16ch; }
+.news-feature-text{ position:relative; max-width:52ch; font-size:15px; line-height:1.55; color:var(--muted); }
+.news-feature .news-meta{ margin-top:auto; padding-top:8px; }
+.news-feature .news-more{ position:relative; color:var(--primary-light); }
+
+/* the rest: three-up grid */
+.news-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:12px; }
+.news-grid li{ display:grid; min-width:0; }
+.news-card{
+  display:flex; flex-direction:column; align-items:flex-start; gap:9px;
+  min-width:0; min-height:168px; padding:18px 18px 16px; border-radius:12px; text-align:left;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 60%), var(--surface);
+  border:1px solid var(--line);
+  transition:border-color .2s, transform .2s var(--ease);
+}
+.news-card:hover{ border-color:var(--line-strong); transform:translateY(-2px); }
+.news-card-title{ font-size:16px; font-weight:600; line-height:1.3; color:var(--foreground); }
+.news-excerpt{
+  font-size:13px; line-height:1.55; color:var(--subtle);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.news-card .news-more{ margin-top:auto; color:var(--subtle); transition:color .2s; }
+.news-card:hover .news-more{ color:var(--foreground); }
+
+.news-empty{ padding:48px 0; font-size:14px; color:var(--subtle); }
+
+/* full article, with the other posts alongside */
+.news-read{ display:grid; grid-template-columns:minmax(0,68ch) minmax(240px,300px); gap:48px; justify-content:space-between; }
+.news-article{ display:grid; align-content:start; gap:14px; user-select:text; }
+.news-back{ justify-self:start; margin:0 0 10px -10px; }
+.news-article-title{ font-size:52px; line-height:.94; }
+.news-lead{ font-size:17px; line-height:1.55; color:var(--foreground); }
+.news-article > p:not(.news-meta):not(.news-lead){ font-size:15px; line-height:1.75; color:var(--muted); }
+
+.news-more-list{ align-self:start; padding-top:52px; }
+.news-more-list ul{ margin-top:10px; border-top:1px solid var(--line); }
+.news-more-list button{
+  display:grid; gap:6px; width:100%; padding:14px 2px; text-align:left;
+  border:0; border-bottom:1px solid var(--line); background:none;
+}
+.news-more-list b{ font-size:14px; font-weight:500; line-height:1.35; color:var(--muted); transition:color .2s; }
+.news-more-list button:hover b{ color:var(--foreground); }
 
 /* ============================================================
    TABLES (matches, leaderboard)

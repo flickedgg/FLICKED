@@ -13,6 +13,12 @@ export type RecentMatch = {
   kd: string; adr: number; delta: number; when: string;
 };
 export type LeaderRow = { rank: number; name: string; rating: number; wins: number; winRate: number };
+export type NewsCategory = "patch" | "update" | "event";
+export type NewsPost = {
+  id: string; category: NewsCategory; title: string; date: string;
+  excerpt: string; body: string[];
+  badge?: string; // big watermark on the featured card, e.g. a version number
+};
 
 export const PLAYER = {
   name: "viix0",
@@ -67,3 +73,67 @@ export const LEADERBOARD: LeaderRow[] = [
 ];
 
 export const NETWORK = { online: 1204, servers: 38, host: "demo.flicked.local" };
+
+export const NEWS_CATEGORIES: [NewsCategory, string][] = [
+  ["patch", "Patch notes"],
+  ["update", "Updates"],
+  ["event", "Events"],
+];
+
+// newest first
+export const NEWS: NewsPost[] = [
+  {
+    id: "n6", category: "patch", date: "18 Sep", badge: "0.2",
+    title: "Alpha 0.2: parties and map vote",
+    excerpt: "Queue with up to four friends, and pick the map together after everyone accepts.",
+    body: [
+      "Parties are here. Invite friends from the list on the Play screen, or share your party code so they can join directly. The leader queues for everyone.",
+      "Map veto is replaced by a map vote. After all ten players accept, everyone has 15 seconds to vote. The map with the most votes is played; a tie is settled at random.",
+      "Also in this release: the launcher starts faster, fonts ship with the app, and the window no longer flashes white on open.",
+    ],
+  },
+  {
+    id: "n5", category: "update", date: "15 Sep",
+    title: "Self-host FLICKED on a single machine",
+    excerpt: "A new guide walks through running the backend, database and one CS2 server on one box.",
+    body: [
+      "You do not need a cluster to run FLICKED. The new guide in the repository shows how to run the backend, PostgreSQL, Redis and a CS2 dedicated server on a single machine.",
+      "It covers ports, the match config, and how to point the launcher at your own server.",
+    ],
+  },
+  {
+    id: "n4", category: "event", date: "12 Sep",
+    title: "Community Cup #1: sign-ups open",
+    excerpt: "Five-stack tournament, single elimination, played on community servers.",
+    body: [
+      "Sign-ups for the first FLICKED Community Cup are open. Teams of five, single elimination, best of one until the final.",
+      "Matches run on community-hosted servers. Brackets are published the day before the first round.",
+    ],
+  },
+  {
+    id: "n3", category: "patch", date: "08 Sep", badge: "0.1.3",
+    title: "Alpha 0.1.3: queue fixes",
+    excerpt: "Fixes a case where a declined match kept you in queue, plus smaller stability fixes.",
+    body: [
+      "Declining a match now always returns you to the Play screen. Before, a declined match could leave you searching with no way to cancel.",
+      "Reconnecting to a live match is faster, and the server log keeps the full match history.",
+    ],
+  },
+  {
+    id: "n2", category: "update", date: "03 Sep",
+    title: "Every match now records a demo",
+    excerpt: "Demos are saved on the server and can be downloaded from the match page.",
+    body: [
+      "Every match played on FLICKED now records a demo automatically. Demos are stored on the server that hosted the match.",
+      "Server owners can set how long demos are kept.",
+    ],
+  },
+  {
+    id: "n1", category: "event", date: "29 Aug",
+    title: "Weekly 5v5 night, Fridays at 20:00 CET",
+    excerpt: "A standing night to find full stacks. Queue times drop, games get better.",
+    body: [
+      "Every Friday from 20:00 CET we play community 5v5s. More people in queue at the same time means shorter waits and closer matches.",
+    ],
+  },
+];
