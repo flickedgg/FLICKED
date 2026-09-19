@@ -3,9 +3,9 @@
    Animation effects), which WebView2 reports as prefers-reduced-motion.
    "on" / "off" override it. The CSS reads <html data-motion>. */
 
-export type Motion = "system" | "on" | "off";
+import { PREFS_KEY } from "./prefs";
 
-export const PREFS_KEY = "flicked.prefs";
+export type Motion = "system" | "on" | "off";
 
 export function applyMotion(m: Motion) {
   if (m === "system") delete document.documentElement.dataset.motion;

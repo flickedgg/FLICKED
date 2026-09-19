@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { applyMotion, storedMotion, PREFS_KEY, type Motion } from "../lib/motion";
+import { applyMotion, storedMotion, type Motion } from "../lib/motion";
+import { PREFS_EVENT, PREFS_KEY } from "../lib/prefs";
 import { AccountCard } from "../components/AccountCard";
 import { openExternal } from "../lib/openExternal";
 
@@ -14,6 +15,7 @@ type Prefs = {
   startWithWindows: boolean;
   minimizeToTray: boolean;
   closeOnLaunch: boolean;
+  discordActivity: boolean;
   motion: Motion;
 };
 
@@ -23,6 +25,7 @@ const DEFAULTS: Prefs = {
   startWithWindows: false,
   minimizeToTray: true,
   closeOnLaunch: false,
+  discordActivity: true,
   motion: "system",
 };
 
@@ -90,6 +93,7 @@ export default function Settings() {
 
   useEffect(() => {
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
+    window.dispatchEvent(new Event(PREFS_EVENT)); // e.g. Discord activity reacts to the toggle
     applyMotion(prefs.motion);
   }, [prefs]);
 
@@ -138,6 +142,8 @@ export default function Settings() {
             checked={prefs.minimizeToTray} onChange={v => set("minimizeToTray", v)} />
           <Toggle label="Hide while in a match" hint="Frees memory for CS2 while you play."
             checked={prefs.closeOnLaunch} onChange={v => set("closeOnLaunch", v)} />
+          <Toggle label="Show activity on Discord" hint="Friends see your queue, party and match on your Discord profile."
+            checked={prefs.discordActivity} onChange={v => set("discordActivity", v)} />
           <Choice
             label="Animations"
             hint={`Follow Windows uses your Windows animation effects setting (currently ${windowsReduces ? "off" : "on"}).`}

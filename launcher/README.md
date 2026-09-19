@@ -20,10 +20,11 @@ src/
   components/         TitleBar, Sidebar, StatusBar, MatchFlow, PartyCards, FriendsPanel, AccountCard, Icon, Elapsed
   hooks/useQueue.ts   matchmaking state (idle → searching → found → vote → connecting)
   hooks/useParty.ts   party state: members, pending invites, kick, disband
-  lib/                openExternal (links open in the browser), motion (animation preference)
+  lib/                openExternal (links open in the browser), motion (animation preference), prefs
   views/              Play (eager), Matches / Leaderboard / News / Settings (lazy-loaded)
   data/demo.ts        demo data until the backend exists
 src-tauri/            Rust side, window config, capabilities
+  src/presence.rs     Discord Rich Presence (hooks/usePresence.ts decides what it shows)
 ```
 
 ## Performance rules

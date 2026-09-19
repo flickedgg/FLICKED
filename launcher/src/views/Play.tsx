@@ -9,8 +9,9 @@ import { Icon } from "../components/Icon";
 
 const FRIENDS_KEY = "flicked.friends";
 
-export function Play({ queue, party }: { queue: Queue; party: Party }) {
-  const [mode, setMode] = useState(MODES[0].id);
+export function Play({ queue, party, mode, setMode }: {
+  queue: Queue; party: Party; mode: string; setMode: (id: string) => void;
+}) {
   const searching = queue.phase === "searching";
   const current = MODES.find(m => m.id === mode)!;
   const searchRef = useRef<HTMLInputElement>(null);
