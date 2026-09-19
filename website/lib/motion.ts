@@ -1,6 +1,5 @@
-// Per DESIGN.md: GSAP is the only motion library, every animation is gated
-// behind prefers-reduced-motion, and the static composition is complete
-// without any of it.
+// See DESIGN.md §8 (Motion): every animation is gated behind
+// prefers-reduced-motion, and the page is complete without any of it.
 
 export const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 export const MOTION_OK = "(prefers-reduced-motion: no-preference)";
