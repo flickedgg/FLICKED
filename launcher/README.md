@@ -17,7 +17,7 @@ src/
   main.tsx            entry: fonts, global styles
   App.tsx             shell: title bar, sidebar, view switch, match-found dialog
   styles.css          all styles; tokens match website/app/globals.css
-  components/         TitleBar, Sidebar, StatusBar, MatchFlow, PartyCards, FriendsPanel, Icon, Elapsed
+  components/         TitleBar, Sidebar, StatusBar, MatchFlow, PartyCards, FriendsPanel, AccountCard, Icon, Elapsed
   hooks/useQueue.ts   matchmaking state (idle → searching → found → vote → connecting)
   hooks/useParty.ts   party state: members, pending invites, kick, disband
   views/              Play (eager), Matches / Leaderboard / News / Settings (lazy-loaded)

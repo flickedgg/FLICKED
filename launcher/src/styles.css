@@ -85,6 +85,8 @@ img{ display:block; }
 .faint{ color:var(--faint); }
 .tabular{ font-variant-numeric:tabular-nums; }
 .min-w-0{ min-width:0; }
+/* read by screen readers, not shown */
+.sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
 .eyebrow{
   font-family:var(--ff-mono); font-size:11.5px; font-weight:500;
@@ -596,6 +598,61 @@ button:hover > .news-more svg{ transform:translateX(3px); }
 }
 .switch:checked{ background:var(--primary); }
 .switch:checked::after{ transform:translateX(16px); background:#0c0c0d; }
+
+/* settings: account on top, then full-width option cards */
+.settings-stack{ display:grid; gap:14px; }
+.settings-stack .settings{ margin-bottom:0; }
+.input.is-warn{ border-color:rgba(224,179,65,.55); }
+.field-warn{ font-size:12px; color:#e0b341; }
+
+.spinner{
+  width:14px; height:14px; border-radius:50%; flex:none;
+  border:2px solid rgba(0,0,0,.2); border-top-color:currentColor;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+.account{ display:flex; align-items:center; gap:14px; padding:12px 14px 12px 16px; }
+.account-av{
+  display:grid; place-content:center; flex:none; width:40px; height:40px; border-radius:10px;
+  background:linear-gradient(135deg,var(--primary),#8f3200);
+  font-family:var(--ff-display); font-size:20px; font-weight:700; color:#0c0c0d;
+}
+.account-who{ display:grid; min-width:0; }
+.account-who b{ font-size:15px; font-weight:600; color:var(--foreground); }
+.account-who small{ font-size:12px; color:var(--subtle); }
+
+.account-steam{ display:flex; align-items:center; gap:6px; margin-left:auto; }
+
+/* linked Steam account: one chip, click to open the profile */
+.steam-chip{
+  display:flex; align-items:center; gap:11px; height:44px; padding:0 12px 0 8px; border-radius:10px;
+  border:1px solid var(--line); background:rgba(255,255,255,.025); text-align:left;
+  transition:border-color .2s, background-color .2s;
+}
+.steam-chip:hover{ border-color:var(--line-strong); background:rgba(255,255,255,.05); }
+.steam-chip-icon{ position:relative; display:grid; place-content:center; width:30px; height:30px; color:var(--foreground); }
+/* green dot on the logo = linked */
+.steam-chip-icon i{
+  position:absolute; right:0; bottom:0; width:9px; height:9px; border-radius:50%;
+  background:var(--win); border:2px solid var(--surface);
+}
+.steam-chip-text{ display:grid; line-height:1.25; }
+.steam-chip-text b{ font-size:13.5px; font-weight:600; color:var(--foreground); }
+.steam-chip-text small{ font-size:11.5px; color:var(--subtle); }
+.steam-chip-go{ display:grid; margin-left:6px; color:var(--faint); transition:color .2s, transform .2s var(--ease); }
+.steam-chip:hover .steam-chip-go{ color:var(--foreground); transform:translate(1px,-1px); }
+
+.icon-btn{
+  display:grid; place-content:center; width:34px; height:34px; border-radius:8px;
+  border:1px solid transparent; background:transparent; color:var(--faint);
+  transition:color .2s, border-color .2s, background-color .2s;
+}
+.icon-btn:hover{ color:var(--foreground); border-color:var(--line); }
+.icon-btn.is-danger:hover{ color:#ff8a7a; border-color:rgba(255,138,122,.3); background:rgba(255,138,122,.06); }
+
+.steam-link{ margin-left:auto; height:40px; padding:0 16px; font-size:13px; }
+.text-btn.is-danger:hover{ color:#ff8a7a; border-color:rgba(255,138,122,.3); }
 
 /* ============================================================
    MATCH FLOW — found → map vote → connecting

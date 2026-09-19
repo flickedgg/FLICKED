@@ -29,6 +29,10 @@ export const PLAYER = {
   stats: { matches: 128, winRate: 57, kd: 1.21, adr: 84.6 } as Stats,
 };
 
+export const ACCOUNT = {
+  steam: { persona: "viix0", id64: "76561198000000000" },
+};
+
 export const MODES: Mode[] = [
   { id: "comp",    name: "Competitive", format: "5v5 · MR12", note: "Ranked. Map veto, full match.", size: 5 },
   { id: "wingman", name: "Wingman",     format: "2v2 · MR8",  note: "Ranked. Short matches, small maps.", size: 2 },
