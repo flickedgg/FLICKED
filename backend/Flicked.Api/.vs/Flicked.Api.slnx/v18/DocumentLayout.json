@@ -1,0 +1,70 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|c:\\users\\yousseff\\desktop\\coding\\[forgithub]\\flicked\\backend\\flicked.api\\controllers\\newscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|solutionrelative:controllers\\newscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|c:\\users\\yousseff\\desktop\\coding\\[forgithub]\\flicked\\backend\\flicked.api\\models\\newspost.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|solutionrelative:models\\newspost.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|c:\\users\\yousseff\\desktop\\coding\\[forgithub]\\flicked\\backend\\flicked.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3FA73D9F-B260-9043-1638-94B636568542}|Flicked.Api.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "NewsController.cs",
+              "DocumentMoniker": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Controllers\\NewsController.cs",
+              "RelativeDocumentMoniker": "Controllers\\NewsController.cs",
+              "ToolTip": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Controllers\\NewsController.cs",
+              "RelativeToolTip": "Controllers\\NewsController.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAAD8AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-09-19T19:49:58.942Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "NewsPost.cs",
+              "DocumentMoniker": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Models\\NewsPost.cs",
+              "RelativeDocumentMoniker": "Models\\NewsPost.cs",
+              "ToolTip": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Models\\NewsPost.cs",
+              "RelativeToolTip": "Models\\NewsPost.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-09-19T19:35:50.247Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "C:\\Users\\Yousseff\\Desktop\\Coding\\[ForGithub]\\FLICKED\\backend\\Flicked.Api\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAALAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-09-19T19:28:26.139Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

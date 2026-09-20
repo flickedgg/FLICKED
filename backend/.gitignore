@@ -1,6 +1,6 @@
 # Build & Debuging
-/bin/
-/obj/
+**/bin/
+**/obj/
 
 # Visual Studio
 /.vs/
