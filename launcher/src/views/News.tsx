@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { NEWS, NEWS_CATEGORIES, type NewsCategory, type NewsPost } from "../data/demo";
 import { Icon } from "../components/Icon";
+import { NEWS_CATEGORIES, type NewsCategory, type NewsPost } from "../data/demo";
+import { fetchNews } from "../lib/api";
 
 const LABEL = Object.fromEntries(NEWS_CATEGORIES) as Record<NewsCategory, string>;
 
@@ -38,10 +39,10 @@ function Card({ post, onOpen }: { post: NewsPost; onOpen: () => void }) {
   );
 }
 
-function Article({ post, onBack, onOpen }: {
-  post: NewsPost; onBack: () => void; onOpen: (p: NewsPost) => void;
+function Article({ post, posts, onBack, onOpen }: {
+  post: NewsPost; posts: NewsPost[]; onBack: () => void; onOpen: (p: NewsPost) => void;
 }) {
-  const more = NEWS.filter(p => p.id !== post.id).slice(0, 4);
+  const more = posts.filter(p => p.id !== post.id).slice(0, 4);
   return (
     <div className="news-read">
       <article className="news-article">
@@ -72,9 +73,15 @@ function Article({ post, onBack, onOpen }: {
 }
 
 export default function News() {
+  const [posts, setPosts] = useState<NewsPost[]>([]);
+  const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<NewsCategory | "all">("all");
   const [open, setOpen] = useState<NewsPost | null>(null);
   const top = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchNews().then(setPosts).catch(() => setFailed(true));
+  }, []);
 
   // opening or closing an article starts at the top, not where the list was scrolled to
   useEffect(() => { top.current?.scrollIntoView({ block: "start" }); }, [open]);
@@ -82,12 +89,12 @@ export default function News() {
   if (open) {
     return (
       <div className="view" ref={top}>
-        <Article post={open} onBack={() => setOpen(null)} onOpen={setOpen} />
+        <Article post={open} posts={posts} onBack={() => setOpen(null)} onOpen={setOpen} />
       </div>
     );
   }
 
-  const shown = filter === "all" ? NEWS : NEWS.filter(p => p.category === filter);
+  const shown = filter === "all" ? posts : posts.filter(p => p.category === filter);
   const [first, ...others] = shown;
 
   return (
@@ -123,7 +130,7 @@ export default function News() {
           )}
         </>
       ) : (
-        <p className="news-empty">Nothing here yet.</p>
+        <p className="news-empty">{failed ? "Could not reach the server." : "Nothing here yet."}</p>
       )}
     </div>
   );
