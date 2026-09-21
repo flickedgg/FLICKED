@@ -25,4 +25,4 @@ public class Player
     public string? AvatarUrl { get; set; }
 }
 
-public record LeaderboardEntry(int Rank, string Name, int Rating, int Wins, int WinRate);
+public record LeaderboardEntry(int Rank, int PlayerId, string Name, int Rating, int Wins, int WinRate);

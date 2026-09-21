@@ -1,4 +1,4 @@
-﻿using Flicked.Api.Data;
+using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +26,7 @@ public class LeaderboardController : ControllerBase
         {
         var played = player.Wins + player.Losses;
         var winRate = played == 0 ? 0 : player.Wins * 100 / played;
-        return new LeaderboardEntry(index + 1, player.Name, player.Rating, player.Wins, winRate);
+        return new LeaderboardEntry(index + 1, player.Id, player.Name, player.Rating, player.Wins, winRate);
         }).ToList();
         return Ok(leaderboard);
     }
