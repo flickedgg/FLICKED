@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { fetchLeaderboard } from "../lib/api";
-import { LeaderRow, PLAYER } from "../data/demo";
-
+import { useSession } from "../hooks/useSession";
+import type { LeaderRow } from "../data/demo";
 
 export default function Leaderboard() {
-  const [LEADERBOARD, setLEADERBOARD] = useState<LeaderRow[]>([]);
+  const [rows, setRows] = useState<LeaderRow[]>([]);
+  const [failed, setFailed] = useState(false);
+  const { account } = useSession();
+
   useEffect(() => {
-      fetchLeaderboard().then(setLEADERBOARD).catch(err => console.error(err));
+    fetchLeaderboard().then(setRows).catch(() => setFailed(true));
   }, []);
+
+  // matched on id, not name: two players can pick the same Steam name
+  const you = account ? rows.find(r => r.playerId === account.id) : undefined;
+
   return (
     <div className="view">
       <header className="view-head">
@@ -23,23 +30,37 @@ export default function Leaderboard() {
           <span role="columnheader">Wins</span>
           <span role="columnheader">Win rate</span>
         </div>
-        {LEADERBOARD.map(p => (
-          <div key={p.rank} className={`tr${p.rank <= 3 ? " is-top" : ""}`} role="row">
+        {rows.map(p => (
+          <div
+            key={p.playerId}
+            className={`tr${p.rank <= 3 ? " is-top" : ""}${p.playerId === account?.id ? " is-you" : ""}`}
+            role="row"
+          >
             <span role="cell" className="mono rank">{String(p.rank).padStart(2, "0")}</span>
-            <span role="cell" className="who">{p.name}</span>
+            <span role="cell" className="who">
+              {p.name}{p.playerId === account?.id && <> <small className="tag">you</small></>}
+            </span>
             <span role="cell" className="mono">{p.rating.toLocaleString()}</span>
             <span role="cell" className="mono">{p.wins}</span>
             <span role="cell" className="mono">{p.winRate}%</span>
           </div>
         ))}
-        <div className="tr is-you" role="row">
-          <span role="cell" className="mono rank">412</span>
-          <span role="cell" className="who">{PLAYER.name} <small className="tag">you</small></span>
-          <span role="cell" className="mono">{PLAYER.rating.toLocaleString()}</span>
-          <span role="cell" className="mono">{Math.round(PLAYER.stats.matches * PLAYER.stats.winRate / 100)}</span>
-          <span role="cell" className="mono">{PLAYER.stats.winRate}%</span>
-        </div>
+
+        {/* only when you are signed in but ranked outside the rows above */}
+        {account && !you && rows.length > 0 && (
+          <div className="tr is-you" role="row">
+            <span role="cell" className="mono rank">—</span>
+            <span role="cell" className="who">{account.name} <small className="tag">you</small></span>
+            <span role="cell" className="mono">{account.rating.toLocaleString()}</span>
+            <span role="cell" className="mono">0</span>
+            <span role="cell" className="mono">0%</span>
+          </div>
+        )}
       </div>
+
+      {rows.length === 0 && (
+        <p className="news-empty">{failed ? "Could not reach the server." : "No ranked players yet."}</p>
+      )}
     </div>
   );
 }
