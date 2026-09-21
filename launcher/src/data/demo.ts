@@ -12,6 +12,12 @@ export type RecentMatch = {
   id: number; map: string; result: "W" | "L"; score: string;
   kd: string; adr: number; delta: number; when: string;
 };
+/* What /api/matches returns: one player's view of a match. Unlike RecentMatch
+   the map is a server code (de_mirage) and the time is a real timestamp. */
+export type MatchRow = {
+  id: number; map: string; result: "W" | "L"; score: string;
+  kd: string; adr: number; delta: number; playedAt: string;
+};
 export type LeaderRow = { rank: number; name: string; rating: number; wins: number; winRate: number };
 export type NewsCategory = "patch" | "update" | "event";
 export type NewsPost = {
@@ -53,6 +59,11 @@ export const MAP_CODE: Record<string, string> = {
   Mirage: "de_mirage", Inferno: "de_inferno", Nuke: "de_nuke", Ancient: "de_ancient",
   Anubis: "de_anubis", "Dust II": "de_dust2", Train: "de_train",
 };
+
+// the other way round: servers and the API talk in codes, screens show names
+export const MAP_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(MAP_CODE).map(([name, code]) => [code, name]),
+);
 
 export const RECENT: RecentMatch[] = [
   { id: 48213, map: "Mirage",  result: "W", score: "13–9",  kd: "21/12", adr: 97, delta: +24, when: "2h ago" },
