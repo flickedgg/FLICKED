@@ -1,4 +1,5 @@
 import type { NewsPost } from "../data/demo";
+import type { LeaderRow } from "../data/demo";
 
 /* Calls to the FLICKED backend. Public read-only endpoints live here;
    anything needing a session token will go through Rust instead. */
@@ -11,3 +12,4 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const fetchNews = () => get<NewsPost[]>("/api/news");
+export const fetchLeaderboard = () => get<LeaderRow[]>("/api/leaderboard");

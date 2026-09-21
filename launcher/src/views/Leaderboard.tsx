@@ -1,6 +1,13 @@
-import { LEADERBOARD, PLAYER } from "../data/demo";
+import { useEffect, useState } from "react";
+import { fetchLeaderboard } from "../lib/api";
+import { LeaderRow, PLAYER } from "../data/demo";
+
 
 export default function Leaderboard() {
+  const [LEADERBOARD, setLEADERBOARD] = useState<LeaderRow[]>([]);
+  useEffect(() => {
+      fetchLeaderboard().then(setLEADERBOARD).catch(err => console.error(err));
+  }, []);
   return (
     <div className="view">
       <header className="view-head">
