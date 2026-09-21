@@ -10,7 +10,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # postgres 18+ wants the mount here, not on /data: it keeps each major
+      # version in its own subdirectory so pg_upgrade can work later
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U flicked -d flicked"]
       interval: 5s
