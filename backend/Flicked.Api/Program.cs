@@ -1,4 +1,10 @@
+using Flicked.Api.Data;
+using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
+
+// Database
+builder.Services.AddDbContext<FlickedDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Flicked") ?? throw new InvalidOperationException("Connection string 'Flicked' not found.")));
 
 // Add services to the container.
 
