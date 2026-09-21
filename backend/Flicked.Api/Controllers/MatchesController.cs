@@ -1,5 +1,6 @@
 using Flicked.Api.Models;
 using Flicked.Api.Data;
+using Flicked.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 namespace Flicked.Api.Controllers;
@@ -9,17 +10,25 @@ namespace Flicked.Api.Controllers;
 public class MatchesController : ControllerBase
 {
     private readonly FlickedDbContext _db;
-    public MatchesController(FlickedDbContext db)
+    private readonly CurrentPlayer _current;
+    public MatchesController(FlickedDbContext db, CurrentPlayer current)
     {
         _db = db;
+        _current = current;
     }
 
-    // playerId is a query parameter until accounts exist (0.4), when it becomes the signed-in player.
+    /* Your own history, and only yours.
+    The player comes from the session token, never from the request: a playerId
+    parameter would let anyone read anyone else's matches just by changing a
+    number. Anything the caller could choose is not an identity. */
+    
     [HttpGet]
-    public async Task<IActionResult> GetMatches([FromQuery] int playerId = 1)
+    public async Task<IActionResult> GetMatches(CancellationToken ct)
     {
-        // Starts from MatchPlayers: one row there is exactly one player's view of one match.
-        // The Select reaches across to Match, so EF writes a JOIN and fetches only these columns.
+        var player = await _current.GetAsync(ct);
+        if (player is null) return Unauthorized();
+        var playerId = player.Id;
+
         var rows = await _db.MatchPlayers
             .Where(mp => mp.PlayerId == playerId)
             .OrderByDescending(mp => mp.Match!.PlayedAt)
@@ -39,7 +48,6 @@ public class MatchesController : ControllerBase
             .AsNoTracking()
             .ToListAsync();
 
-        // Shaped here rather than in the query: string building doesn't translate to SQL.
         var matches = rows.Select(r =>
         {
             var onTeamA = r.Team == 0;
