@@ -20,10 +20,45 @@ const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+/* Where the site is served from. Link previews need absolute URLs, so this has to be
+   right in production: set NEXT_PUBLIC_SITE_URL once the domain exists. */
+const SITE =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000");
+
+const TITLE = "FLICKED | Self-hosted competitive CS2";
+const DESCRIPTION =
+  "A free, open-source, self-hostable competitive platform for CS2: matchmaking, parties, map vote, ratings, match history and demos. You bring the servers.";
+
 export const metadata: Metadata = {
-  title: "FLICKED | Self-hosted competitive CS2",
-  description:
-    "FLICKED is a free, open-source, self-hostable competitive platform for CS2: matchmaking, dedicated-server orchestration, rankings, demos and statistics.",
+  metadataBase: new URL(SITE),
+  title: {
+    default: TITLE,
+    template: "%s | FLICKED", // future pages get this automatically
+  },
+  description: DESCRIPTION,
+  applicationName: "FLICKED",
+  keywords: [
+    "CS2", "Counter-Strike 2", "matchmaking", "self-hosted", "open source",
+    "pug", "competitive", "dedicated server", "ranking", "demos",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "FLICKED",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/",
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
