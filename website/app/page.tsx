@@ -10,10 +10,9 @@ import { StackRow } from "@/components/stack-row";
 const CLONE = `git clone ${LINKS.repo}.git`;
 
 const NEEDS = [
-  ["Host", "A Linux or Windows server you control"],
-  ["Database", "PostgreSQL"],
-  ["Cache", "Redis"],
-  ["Game", "Capacity to run CS2 dedicated servers"],
+  ["Host", "A Linux or Windows machine you control"],
+  ["Database", "PostgreSQL, started by Docker"],
+  ["Game", "One or more CS2 servers you already run"],
 ];
 
 const COMPARE: [row: string, flicked: string, hosted: string, honest?: boolean][] = [
@@ -23,17 +22,16 @@ const COMPARE: [row: string, flicked: string, hosted: string, honest?: boolean][
   ["Server locations", "Wherever you put them", "The vendor's regions"],
   ["Rules, maps & formats", "Yours to decide", "The vendor's"],
   ["Player data", "In your own database", "In the vendor's database"],
-  ["Anti-cheat", "Planned, in development", "Mature, kernel-level", true],
+  ["Anti-cheat", "Not included. Run your own", "Mature, kernel-level", true],
   ["Maturity", "Alpha", "Years in production", true],
 ];
 
 const STACK = [
   ["Website", "Next.js & Tailwind"],
-  ["Backend", "C# / .NET"],
+  ["Backend", "C# / .NET 10"],
   ["Database", "PostgreSQL"],
-  ["Cache", "Redis"],
   ["Launcher", "Rust + Tauri"],
-  ["Anti-cheat", "C++ · planned"],
+  ["On the server", "CounterStrikeSharp"],
 ];
 
 const FAQ = [
@@ -41,12 +39,14 @@ const FAQ = [
     "Yes. FLICKED is free and open source. Running it costs whatever your own hardware or VPS costs. There is no subscription, no premium tier and no per-player fee."],
   ["Is it affiliated with Valve or FACEIT?",
     "No. FLICKED is an independent community project. It is not affiliated with, endorsed by or connected to Valve Corporation or any existing competitive platform."],
-  ["Does FLICKED have anti-cheat?",
-    "Not yet. A C++ anti-cheat is planned but hasn't shipped. Until then FLICKED fits best in communities with trusted players, active admins, and server-side demos to review reports."],
+  ["Does FLICKED include an anti-cheat?",
+    "It does not, and one is not on the roadmap. Anti-cheat is a specialist field where the opposition works full time, so a system worth trusting takes a dedicated team and sustained investment. Shipping a weaker one would give players a sense of protection that isn't real. Server owners are free to run a community anti-cheat alongside FLICKED. In practice, FLICKED suits communities with known players, active admins, and recorded demos to review reports."],
+  ["Does FLICKED create CS2 servers for me?",
+    "Not automatically. You register the servers your community already runs, and FLICKED assigns a free one to each match and returns it to the pool when the match ends. Creating and destroying servers on demand is a separate infrastructure problem, and one this project cannot test properly at its current scale."],
   ["Is it ready for production?",
     "It's alpha. Expect things to change and break between releases. It suits communities happy to run early software and report what they find. It's not ready for a prize-money tournament this weekend."],
   ["What do I need to host it?",
-    "A server you control, PostgreSQL, Redis, and the capacity to run CS2 dedicated servers. The README on GitHub has the current setup steps."],
+    "A machine you control, Docker for PostgreSQL, and at least one CS2 server. The README on GitHub has the current setup steps."],
   ["How can I contribute?",
     "Open an issue, pick one up, or send a pull request. Right now, bug reports from real communities running real matches are the most valuable thing you can give."],
 ];
@@ -86,7 +86,7 @@ export default function Home() {
 
             <p className="mx-auto mt-6 max-w-[46ch] text-[17px] leading-relaxed text-muted" data-rv>
               A free, open-source platform for running your own CS2 matchmaking:
-              queues, map veto, dedicated servers, rankings, demos and stats.
+              queues, parties, map vote, ratings, demos and stats. You bring the servers.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3" data-rv>
@@ -156,11 +156,12 @@ export default function Home() {
               <div className="term overflow-x-auto p-6">
                 <p className="whitespace-nowrap"><span className="p">$ </span><span className="text-foreground">{CLONE}</span></p>
                 <p className="whitespace-nowrap"><span className="p">$ </span><span className="text-foreground">cd FLICKED</span></p>
-                <p className="mt-3 c"># configure PostgreSQL, Redis and your CS2 servers,</p>
-                <p className="c"># then follow the setup guide in README.md</p>
+                <p className="whitespace-nowrap"><span className="p">$ </span><span className="text-foreground">docker compose up -d</span></p>
+                <p className="mt-3 c"># then register your CS2 servers and open the queue,</p>
+                <p className="c"># following the setup guide in README.md</p>
               </div>
               <div className="grid border-t border-white/[0.06] sm:grid-cols-3 sm:divide-x sm:divide-white/[0.06]">
-                {[["01", "Clone", "Grab the source from GitHub."], ["02", "Configure", "Point it at your database and servers."], ["03", "Play", "Open the queue to your community."]].map(([n, t, d]) => (
+                {[["01", "Clone", "Grab the source from GitHub."], ["02", "Register", "Add the CS2 servers you already run."], ["03", "Play", "Open the queue to your community."]].map(([n, t, d]) => (
                   <div key={n} className="border-b border-white/[0.06] px-6 py-5 last:border-b-0 sm:border-b-0">
                     <p className="feature-n">{n}</p>
                     <p className="mt-1.5 font-display text-[19px] font-bold uppercase text-foreground">{t}</p>

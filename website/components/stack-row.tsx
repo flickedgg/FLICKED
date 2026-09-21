@@ -1,13 +1,13 @@
 "use client"; // react-icons uses React context
 
-import { SiDotnet, SiNextdotjs, SiPostgresql, SiRedis, SiRust, SiTauri } from "react-icons/si";
+import { SiDocker, SiDotnet, SiNextdotjs, SiPostgresql, SiRust, SiTauri } from "react-icons/si";
 
 // The real stack, from the README.
 const STACK = [
   [SiNextdotjs, "Next.js"],
   [SiDotnet, ".NET"],
   [SiPostgresql, "PostgreSQL"],
-  [SiRedis, "Redis"],
+  [SiDocker, "Docker"],
   [SiRust, "Rust"],
   [SiTauri, "Tauri"],
 ] as const;

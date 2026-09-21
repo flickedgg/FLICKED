@@ -38,7 +38,7 @@ function Card({ icon, title, body, className = "", children }: {
 const STEPS = [
   ["Join the queue", "10 of 10 players found"],
   ["Accept", "Everyone is ready"],
-  ["Pick the map", "Mirage"],
+  ["Vote for the map", "Mirage won, 4 votes"],
   ["Play", "Connecting to server…"],
 ] as const;
 
@@ -65,12 +65,12 @@ function ServerList() {
   return (
     <ul className="mini-list">
       {[
-        ["Match 48214", "Starting", "is-starting"],
-        ["Match 48213", "Live", "is-live"],
-        ["Match 48210", "Finished", "is-off"],
-      ].map(([match, status, state]) => (
-        <li key={match} className="flex items-center justify-between gap-4">
-          <span className="text-foreground">{match}</span>
+        ["fra-01 · Frankfurt", "Reserved", "is-starting"],
+        ["ams-02 · Amsterdam", "In a match", "is-live"],
+        ["lon-01 · London", "Free", "is-off"],
+      ].map(([server, status, state]) => (
+        <li key={server} className="flex items-center justify-between gap-4">
+          <span className="text-foreground">{server}</span>
           <span className={`status ${state}`}><i aria-hidden="true" />{status}</span>
         </li>
       ))}
@@ -153,8 +153,8 @@ export function FeatureBento() {
       </Card>
       <Card
         icon="server"
-        title="Servers start themselves"
-        body="When a match is ready, FLICKED starts a CS2 server for it and shuts it down after. No admin needed."
+        title="Your servers, handed out"
+        body="Register the CS2 servers you already run. FLICKED gives a free one to each new match and takes it back when the match ends."
       >
         <ServerList />
       </Card>

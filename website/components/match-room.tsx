@@ -9,7 +9,7 @@ import { motionOK } from "@/lib/motion";
 
 const TABS = [
   ["scoreboard", "Scoreboard"],
-  ["veto", "Map veto"],
+  ["vote", "Map vote"],
   ["server", "Server"],
 ] as const;
 
@@ -36,22 +36,22 @@ const SLATE: Player[] = [
 // e = Ember won the round, s = Slate; 20 played so far of MR12
 const ROUNDS = "eessesseeses" + "seeseese";
 
-const MAPS: [map: string, note: string, state: "banned" | "picked"][] = [
-  ["Anubis",  "Ban · Ember",  "banned"],
-  ["Nuke",    "Ban · Slate",  "banned"],
-  ["Ancient", "Ban · Ember",  "banned"],
-  ["Train",   "Ban · Slate",  "banned"],
-  ["Inferno", "Ban · Ember",  "banned"],
-  ["Dust II", "Ban · Slate",  "banned"],
-  ["Mirage",  "Decider · playing", "picked"],
+const MAPS: [map: string, note: string, state: "" | "picked"][] = [
+  ["Mirage",  "4 votes · playing", "picked"],
+  ["Inferno", "3 votes",  ""],
+  ["Nuke",    "2 votes",  ""],
+  ["Anubis",  "1 vote",   ""],
+  ["Ancient", "No votes", ""],
+  ["Train",   "No votes", ""],
+  ["Dust II", "No votes", ""],
 ];
 
-/* The orchestration story, narrated as a server log. */
+/* How a match reaches a server, narrated as a server log. */
 const LINES: [tag: string, text: string, cls: string][] = [
   ["queue",  "10/10 players accepted · match 48213 created", "in"],
-  ["veto",   "Mirage selected as decider", "in"],
-  ["orch",   "allocating CS2 server on node-02", "in"],
-  ["server", "dedicated server up · 10 slots reserved", "ok"],
+  ["vote",   "Mirage wins the vote · 4 of 10", "in"],
+  ["pool",   "claiming registered server fra-01 · was free", "in"],
+  ["server", "fra-01 reserved for match 48213 · 10 slots", "ok"],
   ["server", "map de_mirage loaded · match config applied", "in"],
   ["match",  "10/10 connected · going live", "ok"],
   ["demo",   "recording 48213_de_mirage.dem", "fl"],
@@ -209,16 +209,15 @@ export function MatchRoom() {
           </div>
         </div>
 
-        {/* veto */}
-        <div id="pane-veto" ref={el => { paneRefs.current.veto = el; }} hidden={tab !== "veto"}>
+        {/* vote */}
+        <div id="pane-vote" ref={el => { paneRefs.current.vote = el; }} hidden={tab !== "vote"}>
           <div className="mb-4 flex items-center justify-between">
-            <p className="stat-k">Ban order · captains alternate</p>
+            <p className="stat-k">Everyone votes · 15 seconds</p>
             <p className="font-mono text-[11px] text-faint">7 maps · BO1</p>
           </div>
           <div className="veto">
-            {MAPS.map(([map, note, state], i) => (
-              <div key={map} className={`map is-${state}`}>
-                <small>{String(i + 1).padStart(2, "0")}</small>
+            {MAPS.map(([map, note, state]) => (
+              <div key={map} className={state ? `map is-${state}` : "map"}>
                 <div>
                   <b>{map}</b>
                   <small className="mt-1.5 block">{note}</small>
@@ -227,7 +226,8 @@ export function MatchRoom() {
             ))}
           </div>
           <p className="mt-5 border-t border-white/[0.06] pt-5 text-[13.5px] leading-relaxed text-subtle">
-            Captains take turns banning maps. The last one left is the map you play.
+            Once everyone accepts, all ten players vote. The map with the most votes is
+            played, and a tie is settled at random.
           </p>
         </div>
 
