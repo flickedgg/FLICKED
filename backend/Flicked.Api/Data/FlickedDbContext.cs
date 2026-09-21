@@ -7,6 +7,8 @@ public class FlickedDbContext : DbContext
     public FlickedDbContext(DbContextOptions<FlickedDbContext> options) : base(options) { }
     public DbSet<NewsPost> News => Set<NewsPost>();
     public DbSet<Player> Players => Set<Player>();
+    public DbSet<Match> Matches => Set<Match>();
+    public DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,6 +68,24 @@ public class FlickedDbContext : DbContext
     new Player(9, "lowground", 2105, 151, 119),
     new Player(10, "patchnote", 2050, 143, 117)
 );
+        modelBuilder.Entity<MatchPlayer>().HasKey(mp => new { mp.MatchId, mp.PlayerId });
 
+        modelBuilder.Entity<Match>().HasData(
+            new Match { Id = 48213, Map = "de_mirage",  ScoreA = 13, ScoreB = 9,  PlayedAt = new DateTimeOffset(2026, 9, 21, 18, 40, 0, TimeSpan.Zero) },
+            new Match { Id = 48190, Map = "de_inferno", ScoreA = 10, ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 21, 17,  5, 0, TimeSpan.Zero) },
+            new Match { Id = 48122, Map = "de_nuke",    ScoreA = 13, ScoreB = 4,  PlayedAt = new DateTimeOffset(2026, 9, 20, 21, 30, 0, TimeSpan.Zero) },
+            new Match { Id = 48077, Map = "de_ancient", ScoreA = 13, ScoreB = 11, PlayedAt = new DateTimeOffset(2026, 9, 20, 20,  0, 0, TimeSpan.Zero) },
+            new Match { Id = 47951, Map = "de_anubis",  ScoreA = 7,  ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 19, 22, 10, 0, TimeSpan.Zero) },
+            new Match { Id = 47903, Map = "de_dust2",   ScoreA = 13, ScoreB = 10, PlayedAt = new DateTimeOffset(2026, 9, 18, 21, 15, 0, TimeSpan.Zero) }
+        );
+
+        modelBuilder.Entity<MatchPlayer>().HasData(
+            new MatchPlayer { MatchId = 48213, PlayerId = 1, Team = 0, Kills = 21, Deaths = 12, Adr = 97, RatingDelta =  24 },
+            new MatchPlayer { MatchId = 48190, PlayerId = 1, Team = 0, Kills = 15, Deaths = 17, Adr = 72, RatingDelta = -19 },
+            new MatchPlayer { MatchId = 48122, PlayerId = 1, Team = 0, Kills = 18, Deaths =  8, Adr = 91, RatingDelta =  21 },
+            new MatchPlayer { MatchId = 48077, PlayerId = 1, Team = 0, Kills = 17, Deaths = 15, Adr = 80, RatingDelta =  18 },
+            new MatchPlayer { MatchId = 47951, PlayerId = 1, Team = 0, Kills = 11, Deaths = 16, Adr = 61, RatingDelta = -22 },
+            new MatchPlayer { MatchId = 47903, PlayerId = 1, Team = 0, Kills = 19, Deaths = 14, Adr = 88, RatingDelta =  20 }
+        );
     }
 }
