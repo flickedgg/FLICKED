@@ -18,6 +18,7 @@ namespace Flicked.Api.Controllers;
 public class AuthController(
     FlickedDbContext db,
     SteamOpenId steam,
+    SteamProfile steamProfile,
     CurrentPlayer current,
     IConfiguration config,
     ILogger<AuthController> log) : ControllerBase
@@ -61,7 +62,7 @@ public class AuthController(
     }
 
     public record ExchangeRequest(string Code);
-    public record SessionResponse(string Token, DateTimeOffset ExpiresAt, int PlayerId, string Name, string? SteamId);
+    public record SessionResponse(string Token, DateTimeOffset ExpiresAt, int PlayerId, string Name, string? SteamId, string? AvatarUrl);
 
     [HttpPost("exchange")]
     public async Task<IActionResult> Exchange([FromBody] ExchangeRequest body, CancellationToken ct)
@@ -91,7 +92,7 @@ public class AuthController(
         await db.SaveChangesAsync(ct);
 
         return Ok(new SessionResponse(token, session.ExpiresAt, code.PlayerId,
-                                      code.Player!.Name, code.Player.SteamId));
+                                      code.Player!.Name, code.Player.SteamId, code.Player.AvatarUrl));
     }
 
     [HttpGet("me")]
@@ -99,7 +100,7 @@ public class AuthController(
     {
         var player = await current.GetAsync(ct);
         if (player is null) return Unauthorized();
-        return Ok(new { player.Id, player.Name, player.SteamId, player.Rating });
+        return Ok(new { player.Id, player.Name, player.SteamId, player.Rating, player.AvatarUrl });
     }
 
     [HttpPost("logout")]
@@ -121,12 +122,31 @@ public class AuthController(
 
     private async Task<Player> FindOrCreatePlayerAsync(string steamId, CancellationToken ct)
     {
+        var profile = await steamProfile.FetchAsync(steamId, ct);
         var existing = await db.Players.FirstOrDefaultAsync(p => p.SteamId == steamId, ct);
-        if (existing is not null) return existing;
 
-        var created = new Player(0, $"Player {steamId[^4..]}", 1000, 0, 0, steamId);
+        if (existing is not null)
+        {
+            if (profile is not null)
+            {
+                existing.Name = profile.PersonaName;
+                existing.AvatarUrl = profile.AvatarUrl;
+                await db.SaveChangesAsync(ct);
+            }
+            return existing;
+        }
+
+        var created = new Player(
+            id: 0,                                          
+            name: profile?.PersonaName ?? $"Player {steamId[^4..]}",
+            rating: 1000,
+            wins: 0,
+            losses: 0,
+            steamId: steamId,
+            avatarUrl: profile?.AvatarUrl);
+
         db.Players.Add(created);
-        await db.SaveChangesAsync(ct);   // Postgres assigns Id here
+        await db.SaveChangesAsync(ct);
         return created;
     }
 

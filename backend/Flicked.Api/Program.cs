@@ -1,13 +1,18 @@
+using Flicked.Api.Config;
 using Flicked.Api.Data;
 using Flicked.Api.Services;
 using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
+
+// Reads backend/.env, if there is one, into configuration (see Config/DotEnv.cs).
+DotEnv.Load(builder.Configuration, builder.Environment.ContentRootPath);
 
 // Database
 builder.Services.AddDbContext<FlickedDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Flicked") ?? throw new InvalidOperationException("Connection string 'Flicked' not found.")));
 
 builder.Services.AddHttpClient<SteamOpenId>();
+builder.Services.AddHttpClient<SteamProfile>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentPlayer>();
 
