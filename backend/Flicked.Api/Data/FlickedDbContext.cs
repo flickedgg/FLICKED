@@ -6,6 +6,7 @@ public class FlickedDbContext : DbContext
 {
     public FlickedDbContext(DbContextOptions<FlickedDbContext> options) : base(options) { }
     public DbSet<NewsPost> News => Set<NewsPost>();
+    public DbSet<Player> Players => Set<Player>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,5 +54,18 @@ public class FlickedDbContext : DbContext
                   "Every Friday from 20:00 CET we play community 5v5s. More people in queue at the same time means shorter waits and closer matches.",
               ])
             );
+        modelBuilder.Entity<Player>().HasData(
+    new Player(1, "kovac", 2614, 311, 146),
+    new Player(2, "Halden", 2571, 287, 148),
+    new Player(3, "Nyx", 2498, 264, 148),
+    new Player(4, "sprayz", 2402, 240, 147),
+    new Player(5, "quietus", 2366, 198, 127),
+    new Player(6, "reload", 2291, 215, 149),
+    new Player(7, "Brine", 2240, 176, 122),
+    new Player(8, "m0th", 2187, 169, 122),
+    new Player(9, "lowground", 2105, 151, 119),
+    new Player(10, "patchnote", 2050, 143, 117)
+);
+
     }
 }
