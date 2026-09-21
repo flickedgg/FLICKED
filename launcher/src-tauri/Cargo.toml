@@ -23,6 +23,9 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 discord-rich-presence = "1.1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "sync-secret-service", "crypto-rust"] }
+tokio = { version = "1.53.1", features = ["net", "io-util", "time"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

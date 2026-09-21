@@ -1,59 +1,57 @@
-import { useEffect, useRef, useState } from "react";
-import { ACCOUNT, PLAYER } from "../data/demo";
+import { useSession } from "../hooks/useSession";
 import { openExternal } from "../lib/openExternal";
 import { Icon } from "./Icon";
 
-type Link = "linked" | "linking" | "unlinked";
-
 /* One row: who you are on FLICKED, and the Steam account you play as.
-   Linking is simulated: the real flow opens Steam sign-in in the browser
-   and the backend confirms the account. */
+   Signing in opens Steam in the browser; Rust holds the session afterwards. */
 export function AccountCard() {
-  const [link, setLink] = useState<Link>("linked");
-  const timer = useRef<number>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const { account, busy, error, begin, end } = useSession();
 
-  const startLink = () => {
-    setLink("linking");
-    timer.current = window.setTimeout(() => setLink("linked"), 2200);
-  };
+  if (!account) {
+    return (
+      <section className="card account">
+        <span className="account-av" aria-hidden="true">?</span>
+        <span className="account-who">
+          <b>Not signed in</b>
+          <small>{error ?? "Sign in with Steam to queue and keep your stats."}</small>
+        </span>
 
-  const { steam } = ACCOUNT;
+        <button className="btn btn-primary steam-link" onClick={begin} disabled={busy}>
+          {busy
+            ? <><i className="spinner" />Opening Steam…</>
+            : <><Icon name="steam" size={16} />Sign in with Steam</>}
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="card account">
-      <span className="account-av" aria-hidden="true">{PLAYER.name[0].toUpperCase()}</span>
+      <span className="account-av" aria-hidden="true">{account.name[0].toUpperCase()}</span>
       <span className="account-who">
-        <b>{PLAYER.name}</b>
-        <small>{PLAYER.division} · {PLAYER.rating.toLocaleString()}</small>
+        <b>{account.name}</b>
+        <small>{account.rating.toLocaleString()} rating</small>
       </span>
 
-      {link === "linked" ? (
-        <span className="account-steam">
-          {/* the chip itself opens the Steam profile */}
-          <button
-            className="steam-chip"
-            onClick={() => openExternal(`https://steamcommunity.com/profiles/${steam.id64}`)}
-            title="Open Steam profile"
-          >
-            <span className="steam-chip-icon"><Icon name="steam" size={22} /><i /></span>
-            <span className="steam-chip-text">
-              <b>{steam.persona}</b>
-              <small>Steam · linked</small>
-            </span>
-            <span className="steam-chip-go"><Icon name="external" size={14} /></span>
-          </button>
-          <button className="icon-btn is-danger" onClick={() => setLink("unlinked")} title="Unlink Steam" aria-label="Unlink Steam">
-            <Icon name="unlink" size={17} />
-          </button>
-        </span>
-      ) : (
-        <button className="btn btn-primary steam-link" onClick={startLink} disabled={link === "linking"}>
-          {link === "linking"
-            ? <><i className="spinner" />Opening Steam…</>
-            : <><Icon name="steam" size={16} />Link Steam</>}
+      <span className="account-steam">
+        {/* the chip itself opens the Steam profile */}
+        <button
+          className="steam-chip"
+          onClick={() => account.steamId && openExternal(`https://steamcommunity.com/profiles/${account.steamId}`)}
+          disabled={!account.steamId}
+          title="Open Steam profile"
+        >
+          <span className="steam-chip-icon"><Icon name="steam" size={22} /><i /></span>
+          <span className="steam-chip-text">
+            <b>{account.steamId ?? "No Steam account"}</b>
+            <small>Steam · linked</small>
+          </span>
+          <span className="steam-chip-go"><Icon name="external" size={14} /></span>
         </button>
-      )}
+        <button className="icon-btn is-danger" onClick={end} disabled={busy} title="Sign out" aria-label="Sign out">
+          <Icon name="unlink" size={17} />
+        </button>
+      </span>
     </section>
   );
 }
