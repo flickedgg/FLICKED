@@ -34,6 +34,7 @@ pub struct Account {
     pub id: i64,
     pub name: String,
     pub steam_id: Option<String>,
+    pub avatar_url: Option<String>,
     pub rating: i64,
 }
 
@@ -44,6 +45,7 @@ struct SessionResponse {
     player_id: i64,
     name: String,
     steam_id: Option<String>,
+    avatar_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +54,7 @@ struct MeResponse {
     id: i64,
     name: String,
     steam_id: Option<String>,
+    avatar_url: Option<String>,
     rating: i64,
 }
 
@@ -103,6 +106,7 @@ pub async fn steam_login(app: AppHandle) -> Result<Account, String> {
         id: session.player_id,
         name: session.name,
         steam_id: session.steam_id,
+        avatar_url: session.avatar_url,
         rating: 0,
     };
 
@@ -193,7 +197,13 @@ pub async fn current_account() -> Result<Option<Account>, String> {
     }
 
     let me: MeResponse = response.json().await.map_err(|e| e.to_string())?;
-    Ok(Some(Account { id: me.id, name: me.name, steam_id: me.steam_id, rating: me.rating }))
+    Ok(Some(Account {
+        id: me.id,
+        name: me.name,
+        steam_id: me.steam_id,
+        avatar_url: me.avatar_url,
+        rating: me.rating,
+    }))
 }
 
 #[tauri::command]

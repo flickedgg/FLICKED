@@ -27,7 +27,10 @@ export function AccountCard() {
 
   return (
     <section className="card account">
-      <span className="account-av" aria-hidden="true">{account.name[0].toUpperCase()}</span>
+      {/* the Steam picture when the host has an API key, the initial otherwise */}
+      {account.avatarUrl
+        ? <img className="account-av" src={account.avatarUrl} alt="" width={40} height={40} />
+        : <span className="account-av" aria-hidden="true">{account.name[0].toUpperCase()}</span>}
       <span className="account-who">
         <b>{account.name}</b>
         <small>{account.rating.toLocaleString()} rating</small>

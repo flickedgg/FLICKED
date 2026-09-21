@@ -698,6 +698,9 @@ button:hover > .news-more svg{ transform:translateX(3px); }
   background:linear-gradient(135deg,var(--primary),#8f3200);
   font-family:var(--ff-display); font-size:20px; font-weight:700; color:#0c0c0d;
 }
+/* same box as the initial, but showing the Steam picture */
+img.account-av{ object-fit:cover; background:rgba(255,255,255,.04); }
+
 .account-who{ display:grid; min-width:0; }
 .account-who b{ font-size:15px; font-weight:600; color:var(--foreground); }
 .account-who small{ font-size:12px; color:var(--subtle); }

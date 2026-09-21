@@ -8,6 +8,7 @@ export type Account = {
   id: number;
   name: string;
   steamId: string | null;
+  avatarUrl: string | null;   // null when the host has no Steam Web API key
   rating: number;
 };
 
