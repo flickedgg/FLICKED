@@ -21,7 +21,7 @@ use tauri_plugin_opener::OpenerExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-const API: &str = "http://localhost:5165";
+pub(crate) const API: &str = "http://localhost:5165";
 
 const KEYCHAIN_SERVICE: &str = "dev.flicked.launcher";
 const KEYCHAIN_USER: &str = "session-token";
@@ -62,7 +62,7 @@ fn entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USER).map_err(|e| e.to_string())
 }
 
-fn read_token() -> Option<String> {
+pub(crate) fn read_token() -> Option<String> {
     entry().ok()?.get_password().ok()
 }
 

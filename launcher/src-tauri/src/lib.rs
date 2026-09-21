@@ -1,3 +1,4 @@
+mod api;
 mod auth;
 mod presence;
 
@@ -12,6 +13,7 @@ pub fn run() {
             auth::steam_login,
             auth::current_account,
             auth::logout,
+            api::my_matches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

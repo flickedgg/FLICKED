@@ -6,9 +6,13 @@ import { timeAgo } from "../lib/time";
 export default function Matches() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [failed, setFailed] = useState(false);
+  // null from the command means nobody is signed in, which is not a failure
+  const [signedOut, setSignedOut] = useState(false);
 
   useEffect(() => {
-    fetchMatches().then(setMatches).catch(() => setFailed(true));
+    fetchMatches()
+      .then(rows => rows ? setMatches(rows) : setSignedOut(true))
+      .catch(() => setFailed(true));
   }, []);
 
   return (
@@ -45,7 +49,11 @@ export default function Matches() {
       </div>
 
       {matches.length === 0 && (
-        <p className="news-empty">{failed ? "Could not reach the server." : "No matches yet."}</p>
+        <p className="news-empty">
+          {failed ? "Could not reach the server."
+            : signedOut ? "Sign in with Steam to see your matches."
+            : "No matches yet."}
+        </p>
       )}
     </div>
   );
