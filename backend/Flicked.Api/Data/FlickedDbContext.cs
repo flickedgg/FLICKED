@@ -9,6 +9,8 @@ public class FlickedDbContext : DbContext
     public DbSet<Player> Players => Set<Player>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
+    public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,6 +71,13 @@ public class FlickedDbContext : DbContext
     new Player(10, "patchnote", 2050, 143, 117)
 );
         modelBuilder.Entity<MatchPlayer>().HasKey(mp => new { mp.MatchId, mp.PlayerId });
+
+        modelBuilder.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();
+        modelBuilder.Entity<LoginCode>().HasIndex(c => c.CodeHash).IsUnique();
+        modelBuilder.Entity<Player>()
+            .HasIndex(p => p.SteamId)
+            .IsUnique()
+            .HasFilter("\"SteamId\" IS NOT NULL");
 
         modelBuilder.Entity<Match>().HasData(
             new Match { Id = 48213, Map = "de_mirage",  ScoreA = 13, ScoreB = 9,  PlayedAt = new DateTimeOffset(2026, 9, 21, 18, 40, 0, TimeSpan.Zero) },

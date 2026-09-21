@@ -1,4 +1,5 @@
 using Flicked.Api.Data;
+using Flicked.Api.Services;
 using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,7 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<FlickedDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Flicked") ?? throw new InvalidOperationException("Connection string 'Flicked' not found.")));
 
-// Add services to the container.
+builder.Services.AddHttpClient<SteamOpenId>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CurrentPlayer>();
+
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
