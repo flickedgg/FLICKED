@@ -19,6 +19,7 @@ public class AuthController(
     FlickedDbContext db,
     SteamOpenId steam,
     SteamProfile steamProfile,
+    Admins admins,
     CurrentPlayer current,
     IConfiguration config,
     ILogger<AuthController> log) : ControllerBase
@@ -61,6 +62,52 @@ public class AuthController(
         return Redirect($"http://127.0.0.1:{port}/callback?code={code}");
     }
 
+    /* The dashboard's sign-in.
+
+       Same Steam verification as the launcher's; only the ending differs. A
+       browser cannot hold a token the way the launcher does, so the session goes
+       into an HttpOnly cookie: sent automatically, unreadable from JavaScript, so
+       a scripting bug on the dashboard cannot walk off with an admin session. */
+    [HttpGet("web/login")]
+    public IActionResult WebLogin([FromQuery] string? returnTo)
+    {
+        var callback = $"{PublicUrl()}/auth/web/callback?returnTo={Uri.EscapeDataString(SafePath(returnTo))}";
+        return Redirect(SteamOpenId.BuildLoginUrl(callback, PublicUrl()));
+    }
+
+    [HttpGet("web/callback")]
+    public async Task<IActionResult> WebCallback([FromQuery] string? returnTo, CancellationToken ct)
+    {
+        var steamId = await steam.VerifyAsync(Request.Query, ct);
+        if (steamId is null) return Unauthorized("Steam could not confirm that sign-in.");
+
+        var player = await FindOrCreatePlayerAsync(steamId, ct);
+
+        var token = Secrets.New();
+        var now = DateTimeOffset.UtcNow;
+        db.Sessions.Add(new Session
+        {
+            Id = Guid.NewGuid(),
+            PlayerId = player.Id,
+            TokenHash = Secrets.Hash(token),
+            CreatedAt = now,
+            ExpiresAt = now + SessionLifetime,
+        });
+        await db.SaveChangesAsync(ct);
+
+        Response.Cookies.Append(SessionCookie, token, new CookieOptions
+        {
+            HttpOnly = true,                 // scripts cannot read it
+            Secure = Request.IsHttps,        // https only, once there is https
+            SameSite = SameSiteMode.Lax,     // not sent from other sites' requests
+            Path = "/",
+            Expires = now + SessionLifetime,
+        });
+
+        log.LogInformation("Dashboard sign-in for player {PlayerId}", player.Id);
+        return Redirect($"{DashboardUrl()}{SafePath(returnTo)}");
+    }
+
     public record ExchangeRequest(string Code);
     public record SessionResponse(string Token, DateTimeOffset ExpiresAt, int PlayerId, string Name, string? SteamId, string? AvatarUrl);
 
@@ -97,7 +144,7 @@ public class AuthController(
 
     public record PlayerStats(int Matches, int WinRate, double Kd, int Adr);
     public record MeResponse(int Id, string Name, string? SteamId, string? AvatarUrl,
-                             int Rating, string Division, PlayerStats Stats);
+                             int Rating, string Division, bool IsAdmin, PlayerStats Stats);
 
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken ct)
@@ -130,16 +177,22 @@ public class AuthController(
             Adr: rows.Count == 0 ? 0 : (int)Math.Round(rows.Average(r => r.Adr)));
 
         return Ok(new MeResponse(player.Id, player.Name, player.SteamId, player.AvatarUrl,
-                                 player.Rating, Divisions.For(player.Rating), stats));
+                                 player.Rating, Divisions.For(player.Rating), player.IsAdmin, stats));
     }
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
+        // the launcher sends a header, the dashboard a cookie
         var header = Request.Headers.Authorization.ToString();
-        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return NoContent();
+        var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header["Bearer ".Length..].Trim()
+            : Request.Cookies[SessionCookie];
 
-        var hash = Secrets.Hash(header["Bearer ".Length..].Trim());
+        Response.Cookies.Delete(SessionCookie, new CookieOptions { Path = "/" });
+        if (string.IsNullOrEmpty(token)) return NoContent();
+
+        var hash = Secrets.Hash(token);
         var session = await db.Sessions.FirstOrDefaultAsync(s => s.TokenHash == hash, ct);
         if (session is not null && session.RevokedAt is null)
         {
@@ -161,8 +214,10 @@ public class AuthController(
             {
                 existing.Name = profile.PersonaName;
                 existing.AvatarUrl = profile.AvatarUrl;
-                await db.SaveChangesAsync(ct);
             }
+            // configuration grants admin, never revokes it
+            if (!existing.IsAdmin && admins.Includes(steamId)) existing.IsAdmin = true;
+            await db.SaveChangesAsync(ct);
             return existing;
         }
 
@@ -173,12 +228,33 @@ public class AuthController(
             wins: 0,
             losses: 0,
             steamId: steamId,
-            avatarUrl: profile?.AvatarUrl);
+            avatarUrl: profile?.AvatarUrl)
+        {
+            IsAdmin = admins.Includes(steamId),
+        };
 
         db.Players.Add(created);
         await db.SaveChangesAsync(ct);
         return created;
     }
+
+    public const string SessionCookie = "flicked.session";
+
+    /* Only a path on our own dashboard is ever redirected to.
+
+       Without this check, /auth/web/login?returnTo=https://evil.example would make
+       the backend bounce a freshly signed-in admin to somebody else's site: an open
+       redirect, and a convincing way to phish people with a link that really is yours. */
+    private static string SafePath(string? returnTo)
+    {
+        if (string.IsNullOrWhiteSpace(returnTo)) return "/";
+        // one leading slash only: "//evil.example" is a protocol-relative URL
+        if (returnTo[0] != '/' || returnTo.StartsWith("//", StringComparison.Ordinal)) return "/";
+        return returnTo;
+    }
+
+    private string DashboardUrl() =>
+        (config["Dashboard:Url"] ?? config["FLICKED_DASHBOARD_URL"] ?? "http://localhost:3000").TrimEnd('/');
 
     private string PublicUrl() =>
         config["Steam:PublicUrl"]?.TrimEnd('/')

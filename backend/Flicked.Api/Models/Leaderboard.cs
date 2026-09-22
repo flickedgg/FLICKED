@@ -24,6 +24,10 @@ public class Player
     public int Losses { get; set; }
     public string? SteamId { get; set; }
     public string? AvatarUrl { get; set; }
+
+    /* Admins manage game servers from the dashboard. Granted at sign-in from the
+       host's configured Steam IDs (Services/Admins.cs), and editable afterwards. */
+    public bool IsAdmin { get; set; }
     public string[] Friends = Array.Empty<string>();
 }
 

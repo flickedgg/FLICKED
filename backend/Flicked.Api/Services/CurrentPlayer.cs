@@ -19,12 +19,18 @@ public class CurrentPlayer(FlickedDbContext db, IHttpContextAccessor accessor)
         if (_looked) return _cached;
         _looked = true;
 
-        var header = accessor.HttpContext?.Request.Headers.Authorization.ToString();
-        if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            return null;
+        var request = accessor.HttpContext?.Request;
+        if (request is null) return null;
 
-        var token = header["Bearer ".Length..].Trim();
-        if (token.Length == 0) return null;
+        /* Two ways in, one kind of session. The launcher sends a bearer token kept
+           in the OS keychain; the dashboard has a cookie, because a browser cannot
+           hold a token safely. Both name the same row in Sessions. */
+        var header = request.Headers.Authorization.ToString();
+        var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header["Bearer ".Length..].Trim()
+            : request.Cookies["flicked.session"];
+
+        if (string.IsNullOrEmpty(token)) return null;
 
         var hash = Secrets.Hash(token);
         var now = DateTimeOffset.UtcNow;

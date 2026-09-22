@@ -15,11 +15,17 @@ builder.Services.AddHttpClient<SteamOpenId>();
 builder.Services.AddHttpClient<SteamProfile>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentPlayer>();
+builder.Services.AddSingleton<Admins>();
 
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Where the dashboard runs. Same default as dashboard/lib/api.ts expects.
+var dashboard = (builder.Configuration["Dashboard:Url"]
+    ?? builder.Configuration["FLICKED_DASHBOARD_URL"]
+    ?? "http://localhost:3000").TrimEnd('/');
 
 // The launcher's webview is a different origin from the API, so it has to be allowed by name.
 builder.Services.AddCors(options =>
@@ -28,9 +34,14 @@ builder.Services.AddCors(options =>
         .WithOrigins(
             "http://localhost:1420",    // tauri dev (vite)
             "http://tauri.localhost",   // the built app on Windows
-            "tauri://localhost")        // the built app on macOS and Linux
+            "tauri://localhost",        // the built app on macOS and Linux
+            dashboard)                  // the admin dashboard, in a browser
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        /* The dashboard signs in with a cookie, and a browser only sends one
+           cross-origin when the server allows credentials. That also rules out a
+           wildcard origin: with credentials, origins must be named. */
+        .AllowCredentials());
 });
 
 var app = builder.Build();
