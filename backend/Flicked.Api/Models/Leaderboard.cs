@@ -5,7 +5,7 @@ public class Player
     public Player() { }
 
     public Player(int id, string name, int rating, int wins, int losses,
-                  string? steamId = null, string? avatarUrl = null)
+                  string? steamId = null, string? avatarUrl = null, string[]? friends = null)
     {
         Id = id;
         Name = name;
@@ -14,6 +14,7 @@ public class Player
         Losses = losses;
         SteamId = steamId;
         AvatarUrl = avatarUrl;
+        Friends = friends ?? Array.Empty<string>();
     }
 
     public int Id { get; set; }
@@ -23,6 +24,7 @@ public class Player
     public int Losses { get; set; }
     public string? SteamId { get; set; }
     public string? AvatarUrl { get; set; }
+    public string[] Friends = Array.Empty<string>();
 }
 
 public record LeaderboardEntry(int Rank, int PlayerId, string Name, int Rating, int Wins, int WinRate);

@@ -3,6 +3,7 @@ using System;
 using Flicked.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Flicked.Api.Migrations
 {
     [DbContext(typeof(FlickedDbContext))]
-    partial class FlickedDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922091918_FriendsList")]
+    partial class FriendsList
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,41 +24,6 @@ namespace Flicked.Api.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Flicked.Api.Models.Friendship", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AddresseeId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RequesterId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("RespondedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AddresseeId");
-
-                    b.HasIndex("RequesterId", "AddresseeId")
-                        .IsUnique();
-
-                    b.ToTable("Friendships");
-                });
 
             modelBuilder.Entity("Flicked.Api.Models.LoginCode", b =>
                 {
@@ -492,25 +460,6 @@ namespace Flicked.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Sessions");
-                });
-
-            modelBuilder.Entity("Flicked.Api.Models.Friendship", b =>
-                {
-                    b.HasOne("Flicked.Api.Models.Player", "Addressee")
-                        .WithMany()
-                        .HasForeignKey("AddresseeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Flicked.Api.Models.Player", "Requester")
-                        .WithMany()
-                        .HasForeignKey("RequesterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Addressee");
-
-                    b.Navigation("Requester");
                 });
 
             modelBuilder.Entity("Flicked.Api.Models.LoginCode", b =>

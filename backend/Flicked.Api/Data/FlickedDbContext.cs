@@ -11,6 +11,7 @@ public class FlickedDbContext : DbContext
     public DbSet<MatchPlayer> MatchPlayers => Set<MatchPlayer>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,6 +72,23 @@ public class FlickedDbContext : DbContext
     new Player(10, "patchnote", 2050, 143, 117)
 );
         modelBuilder.Entity<MatchPlayer>().HasKey(mp => new { mp.MatchId, mp.PlayerId });
+
+        modelBuilder.Entity<Friendship>(friendship =>
+        {
+            friendship.HasOne(f => f.Requester)
+                .WithMany()
+                .HasForeignKey(f => f.RequesterId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            friendship.HasOne(f => f.Addressee)
+                .WithMany()
+                .HasForeignKey(f => f.AddresseeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            friendship.HasIndex(f => new { f.RequesterId, f.AddresseeId }).IsUnique();
+            friendship.HasIndex(f => f.AddresseeId);   // "requests sent to me"
+            friendship.Property(f => f.Status).HasConversion<string>().HasMaxLength(16);
+        });
 
         modelBuilder.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();
         modelBuilder.Entity<LoginCode>().HasIndex(c => c.CodeHash).IsUnique();
