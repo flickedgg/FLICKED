@@ -28,7 +28,8 @@ const KEYCHAIN_USER: &str = "session-token";
 
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 
-#[derive(Serialize, Clone)]
+/// Everything the interface may know about you. Still no token.
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: i64,
@@ -36,26 +37,24 @@ pub struct Account {
     pub steam_id: Option<String>,
     pub avatar_url: Option<String>,
     pub rating: i64,
+    pub division: String,
+    pub stats: PlayerStats,
+}
+
+/// Counted from match rows by the backend, never stored as columns.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerStats {
+    pub matches: i64,
+    pub win_rate: i64,
+    pub kd: f64,
+    pub adr: i64,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionResponse {
     token: String,
-    player_id: i64,
-    name: String,
-    steam_id: Option<String>,
-    avatar_url: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MeResponse {
-    id: i64,
-    name: String,
-    steam_id: Option<String>,
-    avatar_url: Option<String>,
-    rating: i64,
 }
 
 fn entry() -> Result<keyring::Entry, String> {
@@ -102,13 +101,11 @@ pub async fn steam_login(app: AppHandle) -> Result<Account, String> {
         .set_password(&session.token)
         .map_err(|e| format!("Could not save the session: {e}"))?;
 
-    let account = Account {
-        id: session.player_id,
-        name: session.name,
-        steam_id: session.steam_id,
-        avatar_url: session.avatar_url,
-        rating: 0,
-    };
+    // The exchange hands back a token and nothing else, so the full profile
+    // (rating, division, stats) is read the same way every later start-up reads it.
+    let account = fetch_account(&session.token)
+        .await?
+        .ok_or("Signed in, but the session was refused. Please try again.")?;
 
     let _ = app.emit("flicked://signed-in", account.clone());
     Ok(account)
@@ -174,21 +171,16 @@ async fn reply(stream: &mut TcpStream, message: &str) {
     let _ = stream.flush().await;
 }
 
-#[tauri::command]
-pub async fn current_account() -> Result<Option<Account>, String> {
-    let Some(token) = read_token() else {
-        return Ok(None);
-    };
-
+/// Asks the backend who a token belongs to. None means it is no longer valid.
+async fn fetch_account(token: &str) -> Result<Option<Account>, String> {
     let response = reqwest::Client::new()
         .get(format!("{API}/auth/me"))
-        .bearer_auth(&token)
+        .bearer_auth(token)
         .send()
         .await
         .map_err(|e| format!("Could not reach the server: {e}"))?;
 
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        let _ = entry().and_then(|e| e.delete_credential().map_err(|e| e.to_string()));
         return Ok(None);
     }
 
@@ -196,14 +188,24 @@ pub async fn current_account() -> Result<Option<Account>, String> {
         return Err("The server is not answering right now.".into());
     }
 
-    let me: MeResponse = response.json().await.map_err(|e| e.to_string())?;
-    Ok(Some(Account {
-        id: me.id,
-        name: me.name,
-        steam_id: me.steam_id,
-        avatar_url: me.avatar_url,
-        rating: me.rating,
-    }))
+    response.json::<Account>().await.map(Some).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn current_account() -> Result<Option<Account>, String> {
+    let Some(token) = read_token() else {
+        return Ok(None);
+    };
+
+    let account = fetch_account(&token).await?;
+
+    // A token the server no longer accepts is dropped, so it is not retried on
+    // every start-up.
+    if account.is_none() {
+        let _ = entry().and_then(|e| e.delete_credential().map_err(|e| e.to_string()));
+    }
+
+    Ok(account)
 }
 
 #[tauri::command]

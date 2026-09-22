@@ -371,6 +371,7 @@ img{ display:block; }
   box-shadow:0 8px 20px rgba(0,0,0,.35);
 }
 .card-av.is-you{ background:linear-gradient(135deg,var(--primary),#8f3200); color:#0c0c0d; }
+img.card-av{ object-fit:cover; background:rgba(255,255,255,.04); }
 .card-name-row{ display:flex; align-items:center; justify-content:center; gap:6px; max-width:100%; min-width:0; }
 .card-crown{ display:grid; flex:none; color:var(--primary-light); }
 .card-name{

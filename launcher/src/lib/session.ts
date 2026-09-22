@@ -4,12 +4,22 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
    (src-tauri/src/auth.rs); everything here works in names and ids only. There is
    deliberately no way to read the token from JavaScript. */
 
+// counted from match rows by the backend, not stored on the player
+export type PlayerStats = {
+  matches: number;
+  winRate: number;
+  kd: number;
+  adr: number;
+};
+
 export type Account = {
   id: number;
   name: string;
   steamId: string | null;
   avatarUrl: string | null;   // null when the host has no Steam Web API key
   rating: number;
+  division: string;
+  stats: PlayerStats;
 };
 
 // Opens Steam in the browser and resolves once the player comes back.

@@ -4,6 +4,7 @@ import type { Queue } from "../hooks/useQueue";
 import type { Party } from "../hooks/useParty";
 import { PartyCards } from "../components/PartyCards";
 import { FriendsPanel } from "../components/FriendsPanel";
+import { useSession } from "../hooks/useSession";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/Icon";
 
@@ -14,6 +15,7 @@ export function Play({ queue, party, mode, setMode }: {
 }) {
   const searching = queue.phase === "searching";
   const current = MODES.find(m => m.id === mode)!;
+  const { account } = useSession();
   const searchRef = useRef<HTMLInputElement>(null);
 
   // friends list open or collapsed to a rail; remembered between sessions
@@ -65,7 +67,7 @@ export function Play({ queue, party, mode, setMode }: {
         </header>
 
         <div className="stage">
-          <PartyCards party={party} size={current.size} locked={searching} onInvite={openFriendSearch} />
+          <PartyCards party={party} size={current.size} locked={searching} onInvite={openFriendSearch} account={account} />
 
           <div className={`launch${searching ? " is-searching" : ""}`}>
             {searching ? (
