@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Flicked.Api.Config;
 using Flicked.Api.Data;
 using Flicked.Api.Services;
@@ -16,6 +17,21 @@ builder.Services.AddHttpClient<SteamProfile>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentPlayer>();
 builder.Services.AddSingleton<Admins>();
+
+/* Keys for encrypting RCON passwords (Services/ServerSecrets.cs).
+
+   Persisted to a folder on purpose. The default location is per-process on some
+   hosts and thrown away with the container on others, and losing these keys means
+   every stored RCON password becomes permanently unreadable. In Docker this path
+   must be a mounted volume. */
+var keyPath = builder.Configuration["DataProtection:KeyPath"]
+    ?? builder.Configuration["FLICKED_KEY_PATH"]
+    ?? Path.Combine(builder.Environment.ContentRootPath, "keys");
+Directory.CreateDirectory(keyPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
+    .SetApplicationName("flicked");
+builder.Services.AddSingleton<ServerSecrets>();
 
 
 builder.Services.AddControllers();

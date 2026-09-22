@@ -13,6 +13,8 @@ public class FlickedDbContext : DbContext
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
 
+    public DbSet<GameServer> Servers => Set<GameServer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<NewsPost>().HasData(
@@ -114,5 +116,26 @@ public class FlickedDbContext : DbContext
             new MatchPlayer { MatchId = 47951, PlayerId = 1, Team = 0, Kills = 11, Deaths = 16, Adr = 61, RatingDelta = -22 },
             new MatchPlayer { MatchId = 47903, PlayerId = 1, Team = 0, Kills = 19, Deaths = 14, Adr = 88, RatingDelta =  20 }
         );
+
+        /* No seeded servers: an empty pool is the truth on a fresh install, and a
+           fake row would be claimable by a real match. Admins add their own.
+           Passwords would not belong in a migration anyway, since migrations are
+           committed and run on every self-hoster's database. */
+        modelBuilder.Entity<GameServer>(server =>
+        {
+            // one row per machine and port, so a server cannot be registered twice
+            server.HasIndex(s => new { s.Host, s.Port }).IsUnique();
+            // every authenticated call from a server looks itself up by this
+            server.HasIndex(s => s.TokenHash);
+            server.HasIndex(s => s.Status);   // "find me a free one"
+
+            server.Property(s => s.Status).HasConversion<string>().HasMaxLength(16);
+            server.Property(s => s.Type).HasConversion<string>().HasMaxLength(16);
+
+            server.HasOne(s => s.CurrentMatch)
+                .WithMany()
+                .HasForeignKey(s => s.CurrentMatchId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
     }
 }
