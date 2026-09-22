@@ -95,12 +95,42 @@ public class AuthController(
                                       code.Player!.Name, code.Player.SteamId, code.Player.AvatarUrl));
     }
 
+    public record PlayerStats(int Matches, int WinRate, double Kd, int Adr);
+    public record MeResponse(int Id, string Name, string? SteamId, string? AvatarUrl,
+                             int Rating, string Division, PlayerStats Stats);
+
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken ct)
     {
         var player = await current.GetAsync(ct);
         if (player is null) return Unauthorized();
-        return Ok(new { player.Id, player.Name, player.SteamId, player.Rating, player.AvatarUrl });
+
+        /* Stats are counted from the match rows rather than stored on the player.
+           A stored "kd" column would be another number that can drift from the
+           matches it claims to summarise. Only the columns needed are fetched. */
+        var rows = await db.MatchPlayers
+            .Where(mp => mp.PlayerId == player.Id)
+            .Select(mp => new
+            {
+                mp.Kills,
+                mp.Deaths,
+                mp.Adr,
+                Won = mp.Team == 0 ? mp.Match!.ScoreA > mp.Match.ScoreB
+                                   : mp.Match!.ScoreB > mp.Match.ScoreA,
+            })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var stats = new PlayerStats(
+            Matches: rows.Count,
+            // nobody has played yet: zeros, not a division by zero
+            WinRate: rows.Count == 0 ? 0 : (int)Math.Round(rows.Count(r => r.Won) * 100.0 / rows.Count),
+            // deaths can be 0 in a single match, so divide by at least one
+            Kd: rows.Count == 0 ? 0 : Math.Round(rows.Sum(r => r.Kills) / (double)Math.Max(1, rows.Sum(r => r.Deaths)), 2),
+            Adr: rows.Count == 0 ? 0 : (int)Math.Round(rows.Average(r => r.Adr)));
+
+        return Ok(new MeResponse(player.Id, player.Name, player.SteamId, player.AvatarUrl,
+                                 player.Rating, Divisions.For(player.Rating), stats));
     }
 
     [HttpPost("logout")]
