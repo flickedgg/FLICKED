@@ -14,6 +14,13 @@ pub fn run() {
             auth::current_account,
             auth::logout,
             api::my_matches,
+            api::friends,
+            api::friend_requests,
+            api::search_players,
+            api::add_friend,
+            api::accept_friend,
+            api::remove_friend_request,
+            api::remove_friend,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

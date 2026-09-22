@@ -100,8 +100,6 @@ export function Play({ queue, party, mode, setMode }: {
 
       <aside className="play-side">
         <FriendsPanel
-          party={party}
-          canInvite={!searching && party.taken < current.size}
           searchRef={searchRef}
           collapsed={!friendsOpen}
           onToggle={() => setFriendsOpen(o => !o)}

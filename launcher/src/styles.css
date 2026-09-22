@@ -495,6 +495,9 @@ img{ display:block; }
 .friends-list{ overflow-y:auto; padding-bottom:6px; }
 .friends-group{ padding:12px 18px 4px; }
 .friends-empty{ padding:16px 18px; font-size:13px; color:var(--subtle); }
+/* Steam pictures sit in the same boxes as the initials they replace */
+img.friend-av, .rail-av img{ object-fit:cover; background:rgba(255,255,255,.04); }
+.rail-av img{ width:100%; height:100%; border-radius:inherit; }
 
 .friend{ display:flex; align-items:center; gap:11px; padding:7px 12px 7px 18px; transition:background-color .15s; }
 .friend:hover{ background:rgba(255,255,255,.025); }

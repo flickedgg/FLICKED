@@ -1,127 +1,218 @@
-import { useState, type Ref } from "react";
-import { FRIENDS, type Friend } from "../data/demo";
-import type { Party } from "../hooks/useParty";
+import { type Ref } from "react";
+import { useFriends } from "../hooks/useFriends";
+import type { Friend, FriendRequest, SearchResult } from "../lib/friends";
 import { Icon } from "./Icon";
 
-function Row({ f, state, canInvite, onInvite }: {
-  f: Friend; state: "member" | "pending" | null; canInvite: boolean; onInvite: () => void;
-}) {
+/* Friends, from the backend. Presence (online / in game) is not here yet: it is
+   runtime state rather than a database column, and arrives with 0.5. Party
+   invites come back at the same time, for the same reason. */
+
+function Avatar({ name, url }: { name: string; url: string | null }) {
+  return url
+    ? <img className="friend-av" src={url} alt="" width={30} height={30} />
+    : <span className="friend-av" aria-hidden="true">{name[0]?.toUpperCase() ?? "?"}</span>;
+}
+
+function FriendRow({ f, onRemove }: { f: Friend; onRemove: () => void }) {
   return (
-    <li className={`friend is-${f.presence}`}>
-      <span className="friend-av" aria-hidden="true">{f.name[0].toUpperCase()}<i /></span>
+    <li className="friend">
+      <Avatar name={f.name} url={f.avatarUrl} />
       <span className="friend-who">
         <b>{f.name}</b>
-        <small>{f.activity}</small>
+        <small>{f.rating.toLocaleString()} rating</small>
       </span>
-      {state === "member" ? (
-        <span className="friend-state"><Icon name="check" size={13} />In party</span>
-      ) : state === "pending" ? (
-        <span className="friend-state is-wait">Invited</span>
-      ) : f.presence === "online" ? (
-        <button className="invite-btn" onClick={onInvite} disabled={!canInvite} aria-label={`Invite ${f.name}`}>
-          <Icon name="plus" size={13} />Invite
-        </button>
-      ) : null}
+      <button className="icon-btn is-danger" onClick={onRemove}
+              title={`Remove ${f.name}`} aria-label={`Remove ${f.name}`}>
+        <Icon name="unlink" size={15} />
+      </button>
     </li>
   );
 }
 
-/* Collapsed friends: a column of online friends. Click one to invite them
-   straight from here; the ring shows who is already in the party. */
-function FriendsRail({ party, canInvite, stateOf, onExpand, inactive }: {
-  party: Party; canInvite: boolean; stateOf: (id: string) => "member" | "pending" | null; onExpand: () => void;
-  inactive: boolean;
+function RequestRow({ r, onAccept, onCancel }: {
+  r: FriendRequest; onAccept: () => void; onCancel: () => void;
 }) {
-  const online = FRIENDS.filter(f => f.presence !== "offline");
+  return (
+    <li className="friend">
+      <Avatar name={r.name} url={r.avatarUrl} />
+      <span className="friend-who">
+        <b>{r.name}</b>
+        <small>{r.incoming ? "wants to be friends" : "request sent"}</small>
+      </span>
+      {r.incoming && (
+        <button className="invite-btn" onClick={onAccept} aria-label={`Accept ${r.name}`}>
+          <Icon name="check" size={13} />Accept
+        </button>
+      )}
+      <button className="icon-btn is-danger" onClick={onCancel}
+              title={r.incoming ? "Decline" : "Cancel request"}
+              aria-label={r.incoming ? `Decline ${r.name}` : `Cancel request to ${r.name}`}>
+        <Icon name="x" size={15} />
+      </button>
+    </li>
+  );
+}
+
+function ResultRow({ r, onAdd, onAccept }: {
+  r: SearchResult; onAdd: () => void; onAccept: () => void;
+}) {
+  return (
+    <li className="friend">
+      <Avatar name={r.name} url={r.avatarUrl} />
+      <span className="friend-who">
+        <b>{r.name}</b>
+        <small>{r.rating.toLocaleString()} rating</small>
+      </span>
+      {/* the button follows the relationship the server reported */}
+      {r.relationship === "none" && (
+        <button className="invite-btn" onClick={onAdd} aria-label={`Add ${r.name}`}>
+          <Icon name="plus" size={13} />Add
+        </button>
+      )}
+      {r.relationship === "incoming" && (
+        <button className="invite-btn" onClick={onAccept} aria-label={`Accept ${r.name}`}>
+          <Icon name="check" size={13} />Accept
+        </button>
+      )}
+      {r.relationship === "requested" && <span className="friend-state is-wait">Requested</span>}
+      {r.relationship === "friends" && (
+        <span className="friend-state"><Icon name="check" size={13} />Friends</span>
+      )}
+      {r.relationship === "self" && <span className="friend-state is-wait">You</span>}
+    </li>
+  );
+}
+
+function Rail({ friends, onExpand, inactive }: {
+  friends: Friend[]; onExpand: () => void; inactive: boolean;
+}) {
   return (
     <section className="card card-flush friends-rail" inert={inactive}>
       <button className="rail-toggle" onClick={onExpand} title="Show friends" aria-label="Show friends">
         <Icon name="chevron-left" size={16} />
       </button>
-      <span className="rail-count" title={`${online.length} friends online`}>
+      <span className="rail-count" title={`${friends.length} friends`}>
         <Icon name="users" size={17} />
-        <b>{online.length}</b>
+        <b>{friends.length}</b>
       </span>
       <ul className="rail-list">
-        {online.map(f => {
-          const state = stateOf(f.id);
-          const invitable = f.presence === "online" && !state && canInvite;
-          const tip = state === "member" ? `${f.name} · in party`
-            : state === "pending" ? `${f.name} · invited`
-            : f.presence === "ingame" ? `${f.name} · ${f.activity}`
-            : invitable ? `Invite ${f.name}` : f.name;
-          return (
-            <li key={f.id}>
-              <button
-                className={`rail-av is-${f.presence}${state ? ` is-${state}` : ""}`}
-                onClick={() => party.invite(f.id)}
-                disabled={!invitable}
-                title={tip}
-                aria-label={tip}
-              >
-                {f.name[0].toUpperCase()}<i />
-                {invitable && <span className="rail-plus"><Icon name="plus" size={12} /></span>}
-              </button>
-            </li>
-          );
-        })}
+        {friends.slice(0, 12).map(f => (
+          <li key={f.playerId}>
+            <button className="rail-av" onClick={onExpand} title={f.name} aria-label={f.name}>
+              {f.avatarUrl
+                ? <img src={f.avatarUrl} alt="" width={34} height={34} />
+                : <>{f.name[0]?.toUpperCase() ?? "?"}</>}
+            </button>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
-export function FriendsPanel({ party, canInvite, searchRef, collapsed, onToggle }: {
-  party: Party; canInvite: boolean; searchRef: Ref<HTMLInputElement>;
-  collapsed: boolean; onToggle: () => void;
+export function FriendsPanel({ searchRef, collapsed, onToggle }: {
+  searchRef: Ref<HTMLInputElement>; collapsed: boolean; onToggle: () => void;
 }) {
-  const [query, setQuery] = useState("");
-  const q = query.trim().toLowerCase();
+  const {
+    friends, requests, signedOut, error,
+    query, setQuery, results, searching,
+    add, accept, cancel, remove,
+  } = useFriends();
 
-  const stateOf = (id: string) =>
-    party.members.some(m => m.id === id) ? "member" : party.pending.some(p => p.id === id) ? "pending" : null;
-
-  const shown = q ? FRIENDS.filter(f => f.name.toLowerCase().includes(q)) : FRIENDS;
-  const online = shown.filter(f => f.presence !== "offline");
-  const offline = shown.filter(f => f.presence === "offline");
-
-  const list = (items: Friend[]) => (
-    <ul>
-      {items.map(f => (
-        <Row key={f.id} f={f} state={stateOf(f.id)} canInvite={canInvite} onInvite={() => party.invite(f.id)} />
-      ))}
-    </ul>
-  );
+  const looking = query.trim().length >= 2;
+  const incoming = requests.filter(r => r.incoming);
+  const outgoing = requests.filter(r => !r.incoming);
 
   // both stay mounted: the column eases between widths while they crossfade,
   // and the hidden one is inert (no focus, no clicks, not read out)
   return (
     <div className="friends-dock" data-open={!collapsed}>
-      <FriendsRail party={party} canInvite={canInvite} stateOf={stateOf} onExpand={onToggle} inactive={!collapsed} />
+      <Rail friends={friends} onExpand={onToggle} inactive={!collapsed} />
       <section className="card card-flush friends" inert={collapsed}>
         <div className="friends-head">
           <span className="stat-k">Friends</span>
           <span className="friends-tools">
-            <span className="friends-count">{FRIENDS.filter(f => f.presence !== "offline").length} online</span>
+            <span className="friends-count">
+              {incoming.length > 0 ? `${incoming.length} request${incoming.length > 1 ? "s" : ""}` : friends.length}
+            </span>
             <button className="icon-btn" onClick={onToggle} title="Collapse friends" aria-label="Collapse friends">
               <Icon name="chevron-right" size={16} />
             </button>
           </span>
         </div>
+
         <label className="friends-search">
           <Icon name="search" size={14} />
           <input
             ref={searchRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search friends"
+            placeholder="Find a player by name or Steam ID"
             spellCheck={false}
+            disabled={signedOut}
           />
         </label>
 
         <div className="friends-list">
-          {online.length > 0 && <><p className="friends-group stat-k">Online · {online.length}</p>{list(online)}</>}
-          {offline.length > 0 && <><p className="friends-group stat-k">Offline · {offline.length}</p>{list(offline)}</>}
-          {shown.length === 0 && <p className="friends-empty">No friends match “{query}”.</p>}
+          {error && <p className="friends-empty">{error}</p>}
+
+          {signedOut ? (
+            <p className="friends-empty">Sign in with Steam to add friends.</p>
+          ) : looking ? (
+            <>
+              {searching && results.length === 0 && <p className="friends-empty">Searching…</p>}
+              {!searching && results.length === 0 && <p className="friends-empty">Nobody found.</p>}
+              {results.length > 0 && (
+                <ul>
+                  {results.map(r => (
+                    <ResultRow key={r.playerId} r={r}
+                      onAdd={() => add(r.playerId)} onAccept={() => accept(r.playerId)} />
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              {incoming.length > 0 && (
+                <>
+                  <p className="friends-group stat-k">Requests · {incoming.length}</p>
+                  <ul>
+                    {incoming.map(r => (
+                      <RequestRow key={r.playerId} r={r}
+                        onAccept={() => accept(r.playerId)} onCancel={() => cancel(r.playerId)} />
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {friends.length > 0 && (
+                <>
+                  <p className="friends-group stat-k">Friends · {friends.length}</p>
+                  <ul>
+                    {friends.map(f => (
+                      <FriendRow key={f.playerId} f={f} onRemove={() => remove(f.playerId)} />
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {outgoing.length > 0 && (
+                <>
+                  <p className="friends-group stat-k">Sent · {outgoing.length}</p>
+                  <ul>
+                    {outgoing.map(r => (
+                      <RequestRow key={r.playerId} r={r}
+                        onAccept={() => accept(r.playerId)} onCancel={() => cancel(r.playerId)} />
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {friends.length === 0 && requests.length === 0 && (
+                <p className="friends-empty">No friends yet. Search for someone above.</p>
+              )}
+            </>
+          )}
         </div>
       </section>
     </div>
