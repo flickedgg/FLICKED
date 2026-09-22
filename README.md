@@ -55,6 +55,7 @@ Why these lines are drawn where they are: [ROADMAP.md](./ROADMAP.md).
 |---|---|
 | `./assests/` | Images, logos and other shared assets |
 | `./website/` | Public website |
+| `./dashboard/`| Admins dashboard |
 | `./backend/` | API and database code (`Flicked.slnx` opens it) |
 | `./launcher/` | Desktop launcher |
 | `./docker-compose.yml` | PostgreSQL for local development |
