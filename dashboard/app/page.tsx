@@ -1,4 +1,5 @@
 import { AccountMenu } from "@/components/account-menu";
+import { ServersPanel } from "@/components/servers-panel";
 import { SignIn } from "@/components/sign-in";
 import { getAccount } from "@/lib/session";
 
@@ -41,9 +42,7 @@ export default async function Home() {
           <AccountMenu account={account} />
         </header>
 
-        <p className="mt-10 text-[15px] text-muted">
-          Nothing here yet. Server registration comes next.
-        </p>
+        <ServersPanel />
       </section>
     </main>
   );
