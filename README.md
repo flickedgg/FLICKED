@@ -42,7 +42,7 @@ Why these lines are drawn where they are: [ROADMAP.md](./ROADMAP.md).
 | Part | Built with |
 |---|---|
 | Launcher | Rust + Tauri, React and TypeScript in the webview |
-| Website | Next.js and Tailwind |
+| Website & Dashboard | Next.js and Tailwind |
 | Backend | C# and .NET 10 (ASP.NET Core) |
 | Database | PostgreSQL |
 | CS2 side | CounterStrikeSharp plugin (planned; MatchZy at first) |
