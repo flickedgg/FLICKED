@@ -1,3 +1,6 @@
+/* Shared with both server and client components, so nothing here may import
+   next/headers. Reading the session on the server lives in lib/session.ts. */
+
 /* Where the FLICKED API lives. The dashboard is deployed next to it, so in
    production this is usually the same domain behind a reverse proxy. */
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5165";
@@ -21,23 +24,8 @@ export type Account = {
   isAdmin: boolean;
 };
 
-/* Who is signed in, or null.
-
-   `credentials: "include"` is the whole point: the session is an HttpOnly cookie,
-   which the browser only attaches when asked to. Without it every call here would
-   look signed out. */
-export async function fetchAccount(): Promise<Account | null> {
-  try {
-    const res = await fetch(`${API}/auth/me`, {
-      credentials: "include",
-      cache: "no-store",
-    });
-    return res.ok ? (await res.json() as Account) : null;
-  } catch {
-    return null;   // API not running, or no network: treated as signed out
-  }
-}
-
+/* Signing out, from the browser. `credentials: "include"` is required: the
+   session is a cookie, and browsers only attach cookies cross-origin when asked. */
 export async function signOut(): Promise<void> {
   await fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" });
 }

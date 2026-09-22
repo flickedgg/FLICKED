@@ -1,9 +1,10 @@
+import { AccountMenu } from "@/components/account-menu";
 import { SignIn } from "@/components/sign-in";
-import { fetchAccount } from "@/lib/api";
+import { getAccount } from "@/lib/session";
 
 /* The dashboard front door. Three outcomes:
      not signed in          → sign in with Steam
-     signed in, not admin   → told so plainly
+     signed in, not admin   → told so plainly, with a way out
      admin                  → the dashboard itself
 
    Checked on the server on every request (no caching), so a revoked session or a
@@ -11,14 +12,18 @@ import { fetchAccount } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const account = await fetchAccount();
+  const account = await getAccount();
 
   if (!account) return <SignIn />;
 
+  /* Signed in but not an admin. The sign-out button matters here: without it
+     somebody who signed in with the wrong Steam account would be stuck, since
+     Steam remembers them and signing in again lands in the same place. */
   if (!account.isAdmin) {
     return (
       <SignIn
-        reason={`Signed in as ${account.name}, which is not an admin account on this instance.`}
+        account={account}
+        reason={`Signed in as ${account.name}, which is not an admin on this instance.`}
       />
     );
   }
@@ -28,18 +33,12 @@ export default async function Home() {
        dashboard wants the quiet one, not the landing page's hero glow */
     <main>
       <section data-tone="quiet" className="mx-auto max-w-frame px-6 py-16 lg:px-10">
-        <header className="flex items-center justify-between gap-6">
+        <header className="flex flex-wrap items-center justify-between gap-6">
           <div>
             <p className="eyebrow">Dashboard</p>
             <h1 className="display h1 mt-4">Servers</h1>
           </div>
-          <span className="flex items-center gap-3">
-            {account.avatarUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element -- Steam CDN, not in next.config */
-              <img src={account.avatarUrl} alt="" width={32} height={32} className="rounded-md" />
-            )}
-            <span className="text-[14px] text-foreground">{account.name}</span>
-          </span>
+          <AccountMenu account={account} />
         </header>
 
         <p className="mt-10 text-[15px] text-muted">
