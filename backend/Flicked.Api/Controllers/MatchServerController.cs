@@ -70,12 +70,18 @@ public class MatchServerController(
                 .Where(p => !string.IsNullOrEmpty(p.Player?.SteamId))
                 .ToDictionary(p => p.Player!.SteamId!, p => p.Player!.Name);
 
+        var bothTeamsPresent = match.Players.Any(p => p.Team == 0) && match.Players.Any(p => p.Team == 1);
+
         return Ok(new
         {
             matchid = match.Id.ToString(),
             num_maps = 1,                       // FLICKED plays one map per match
             maplist = new[] { match.Map },
-            map_sides = new[] { "knife" },      // knife round decides sides
+            /* A knife round needs two teams to fight it, and hangs forever without
+               them: the match never goes live and no events are sent. Real matches
+               knife for sides; a half-empty one (a test, or a scrim short of
+               players) starts straight away instead. */
+            map_sides = bothTeamsPresent ? new[] { "knife" } : new[] { "team1_ct" },
             players_per_team = Math.Max(1, match.Players.Count / 2),
             team1 = new { name = "Team A", players = Roster(match.Players.Where(p => p.Team == 0)) },
             team2 = new { name = "Team B", players = Roster(match.Players.Where(p => p.Team == 1)) },
@@ -175,15 +181,34 @@ public class MatchServerController(
                 }
                 break;
 
-            case "series_end":
+            /* map_result carries the score and every player's stats; series_end
+               carries only the series score and a winner (see MatchZySeriesResultEvent
+               in the plugin). With one map per match, map_result is the one worth
+               saving, and series_end is what says the server is free again.
+
+               Both are handled because either can arrive first, or alone: MatchZy
+               does not retry, so a lost map_result must not mean a match that never
+               finishes. */
             case "map_result":
-                // one map per match, so either event carries the final score
                 if (match.Status != MatchStatus.Finished)
                 {
                     await SaveResultAsync(match, body, ct);
-                    if (server is not null) await pool.ReleaseAsync(server.Id, ct);
                     log.LogInformation("Match {MatchId} finished {A}-{B}", matchId, match.ScoreA, match.ScoreB);
                 }
+                break;
+
+            case "series_end":
+                if (match.Status != MatchStatus.Finished)
+                {
+                    // no per-player stats here; the scores are the series ones
+                    match.ScoreA = body.Team1SeriesScore ?? match.ScoreA;
+                    match.ScoreB = body.Team2SeriesScore ?? match.ScoreB;
+                    match.Status = MatchStatus.Finished;
+                    await db.SaveChangesAsync(ct);
+                    log.LogWarning("Match {MatchId} ended without a map_result; saved the series score only", matchId);
+                }
+                if (server is not null) await pool.ReleaseAsync(server.Id, ct);
+                log.LogInformation("Match {MatchId} is over; {Server} released", matchId, server?.Name ?? "no server");
                 break;
 
             default:

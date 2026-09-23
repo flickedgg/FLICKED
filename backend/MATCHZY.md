@@ -91,10 +91,17 @@ Every payload has an `event` field, and every match-scoped one has `matchid`
 | `going_live` | knife done, match starts | `map_number` |
 | `round_end` | every round | `map_number`, `round_number`, `round_time`, `reason`, `winner`, `team1`, `team2` |
 | `map_result` | map finished | `map_number`, `winner`, `team1`, `team2` |
-| `series_end` | match over | `winner`, `team1_series_score`, `team2_series_score`, `time_until_restore` |
+| `series_end` | match over | `winner`, `team1_series_score`, `team2_series_score`, `time_until_restore`. **No per-player stats and no map score**: those are only in `map_result` |
 | `map_picked` / `map_vetoed` / `side_picked` | veto, if used | `team`, `map_name`, `map_number`, `side` |
 | `player_disconnect` | a player leaves | `player` |
 | `demo_upload_ended` | demo uploaded | `map_number`, `filename`, `success` |
+
+**`matchid` arrives as a number in events**, although a match config accepts it as
+a string. Read it leniently or every event is rejected as a type error.
+
+**`css_endmatch` does not send `series_end`.** The admin command resets to warmup;
+the event only fires when a match ends naturally. Ending a match by hand is not a
+way to test the reporting path.
 
 `winner` is `{ "side": "...", "team": "..." }`
 ([MatchData.cs](https://github.com/shobhit-pathak/MatchZy/blob/dev/MatchData.cs)).

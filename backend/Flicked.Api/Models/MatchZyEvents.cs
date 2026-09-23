@@ -40,10 +40,15 @@ public record MatchZyEvent
     [JsonConverter(typeof(LenientStringConverter))]
     public string? MatchId { get; init; }
 
-    // series_end and map_result
+    /* map_result only: the score and every player's stats.
+       series_end has neither, which is why it is handled separately. */
     [JsonPropertyName("team1")] public MatchZyTeam? Team1 { get; init; }
     [JsonPropertyName("team2")] public MatchZyTeam? Team2 { get; init; }
     [JsonPropertyName("winner")] public MatchZyWinner? Winner { get; init; }
+
+    // series_end only
+    [JsonPropertyName("team1_series_score")] public int? Team1SeriesScore { get; init; }
+    [JsonPropertyName("team2_series_score")] public int? Team2SeriesScore { get; init; }
 }
 
 public record MatchZyWinner
