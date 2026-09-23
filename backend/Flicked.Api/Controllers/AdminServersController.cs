@@ -22,6 +22,9 @@ public class AdminServersController(
     FlickedDbContext db,
     CurrentPlayer current,
     ServerSecrets secrets,
+    ServerPool pool,
+    Rcon rcon,
+    IConfiguration config,
     ILogger<AdminServersController> log) : ControllerBase
 {
     /* Everything the dashboard shows. No RCON password and no game password: the
@@ -179,6 +182,60 @@ public class AdminServersController(
         return Ok(new { token });
     }
 
+    public record StartMatchRequest(int MatchId);
+
+    /* Start a match on this server, by hand.
+
+       The manual version of what the matchmaker will do automatically: claim the
+       server, hand it a one-match token, and tell it over RCON where to fetch the
+       config. Useful on its own for testing a server before anyone queues on it. */
+    [HttpPost("{id:int}/start-match")]
+    public async Task<IActionResult> StartMatch(int id, [FromBody] StartMatchRequest body, CancellationToken ct)
+    {
+        if (await Denied(ct) is { } denial) return denial;
+
+        var server = await db.Servers.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (server is null) return NotFound("No such server.");
+        if (!server.IsEnabled) return Conflict("That server is disabled.");
+        if (InMatch(server)) return Conflict("That server is already in a match.");
+
+        var match = await db.Matches.FirstOrDefaultAsync(m => m.Id == body.MatchId, ct);
+        if (match is null) return NotFound("No such match.");
+        if (match.Status == MatchStatus.Live) return Conflict("That match is already live.");
+
+        var rconPassword = secrets.TryDecrypt(server.RconPasswordEncrypted);
+        if (rconPassword is null) return Conflict("This server's RCON password cannot be read. Set it again.");
+
+        /* A fresh token for this match, stored hashed. It goes out in the RCON
+           command below, which is the only time it exists in plaintext here. */
+        var configToken = Secrets.New();
+        match.ConfigTokenHash = Secrets.Hash(configToken);
+        match.Status = MatchStatus.Pending;
+
+        // The server fetches the config over HTTP, so this address must be one it
+        // can actually reach: a public host or a tunnel, never localhost.
+        var configUrl = $"{PublicUrl()}/api/matches/{match.Id}/config";
+
+        server.Status = ServerStatus.Reserved;
+        server.CurrentMatchId = match.Id;
+        server.LeaseUntil = DateTimeOffset.UtcNow + ServerPool.ReserveLease;
+        await db.SaveChangesAsync(ct);
+
+        var command = $"matchzy_loadmatch_url \"{configUrl}\" \"{MatchServerController.ConfigTokenHeader}\" \"{configToken}\"";
+        var reply = await rcon.RunAsync(server.Host, server.Port, rconPassword, command, ct);
+
+        if (reply is null)
+        {
+            // The server never got the command, so it must not be left claimed.
+            await pool.ReleaseAsync(server.Id, ct);
+            return StatusCode(StatusCodes.Status502BadGateway,
+                "Could not reach the server over RCON. Check the host, port and RCON password.");
+        }
+
+        log.LogInformation("Match {MatchId} sent to {Server}", match.Id, server.Name);
+        return Ok(new { server = View(server), match.Id, rcon = reply });
+    }
+
     // Reserved or hosting: something is depending on this server right now.
     private static bool InMatch(GameServer s) =>
         s.Status is ServerStatus.Reserved or ServerStatus.Hosting || s.CurrentMatchId is not null;
@@ -193,6 +250,13 @@ public class AdminServersController(
         s.Id, s.Name, s.Region, s.Type.ToString(), s.Host, s.Port,
         s.Status.ToString(), s.CurrentMatchId, s.LastSeenAt,
         s.IsEnabled, s.RconPasswordEncrypted.Length > 0, s.GamePassword is not null, s.CreatedAt);
+
+    /* Where a CS2 server should reach this API. Not the same as Steam:PublicUrl:
+       during development the backend is on a laptop and the game server is not,
+       so this is usually a tunnel address. */
+    private string PublicUrl() =>
+        (config["Api:PublicUrl"] ?? config["FLICKED_API_PUBLIC_URL"]
+         ?? config["Steam:PublicUrl"] ?? "http://localhost:5165").TrimEnd('/');
 
     private async Task<IActionResult?> Denied(CancellationToken ct)
     {

@@ -37,6 +37,7 @@ builder.Services.AddSingleton<ServerSecrets>();
 // matches that never reported finishing.
 builder.Services.AddScoped<ServerAuth>();
 builder.Services.AddScoped<ServerPool>();
+builder.Services.AddSingleton<Rcon>();
 builder.Services.AddHostedService<PoolJanitor>();
 
 

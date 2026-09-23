@@ -23,5 +23,13 @@ public class Match
 
     public MatchStatus Status { get; set; } = MatchStatus.Pending;
 
+    /* Lets the CS2 server fetch this match's config, and nothing else.
+
+       The server's own token is stored hashed, so it cannot be put into the
+       matchzy_loadmatch_url command we send over RCON. This one is generated when
+       the match starts, handed to the server in that command, and kept here as a
+       hash like every other secret. It is worth exactly one match. */
+    public string? ConfigTokenHash { get; set; }
+
     public List<MatchPlayer> Players { get; set; } = [];
 }

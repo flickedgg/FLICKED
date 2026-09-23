@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Flicked.Api.Models;
@@ -12,10 +13,32 @@ namespace Flicked.Api.Models;
    Everything is nullable because this arrives over the network from software we
    do not control. A missing field should be a 400, never an exception. */
 
+/* MatchZy sends matchid as a number in its events, and accepts it as a string in
+   a match config. Rather than guess which arrives, read whichever is there. */
+public class LenientStringConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) =>
+        reader.TokenType switch
+        {
+            JsonTokenType.String => reader.GetString(),
+            JsonTokenType.Number => reader.TryGetInt64(out var number)
+                ? number.ToString()
+                : reader.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonTokenType.Null => null,
+            _ => null,
+        };
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value);
+}
+
 public record MatchZyEvent
 {
     [JsonPropertyName("event")] public string? Event { get; init; }
-    [JsonPropertyName("matchid")] public string? MatchId { get; init; }
+
+    [JsonPropertyName("matchid")]
+    [JsonConverter(typeof(LenientStringConverter))]
+    public string? MatchId { get; init; }
 
     // series_end and map_result
     [JsonPropertyName("team1")] public MatchZyTeam? Team1 { get; init; }
@@ -37,8 +60,12 @@ public record MatchZyTeam
 
 public record MatchZyPlayer
 {
-    // Steam64, the only identifier MatchZy works in, and the one we key players on
-    [JsonPropertyName("steamid")] public string? SteamId { get; init; }
+    // Steam64, the only identifier MatchZy works in, and the one we key players on.
+    // Sent as a string today, but read leniently: a 17-digit number would overflow
+    // an int and the same mismatch would be a much quieter bug.
+    [JsonPropertyName("steamid")]
+    [JsonConverter(typeof(LenientStringConverter))]
+    public string? SteamId { get; init; }
     [JsonPropertyName("name")] public string? Name { get; init; }
     [JsonPropertyName("stats")] public MatchZyPlayerStats? Stats { get; init; }
 }

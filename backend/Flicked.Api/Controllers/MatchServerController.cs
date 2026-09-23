@@ -23,18 +23,31 @@ public class MatchServerController(
     FlickedDbContext db,
     ServerAuth auth,
     ServerPool pool,
+    IConfiguration config,
     ILogger<MatchServerController> log) : ControllerBase
 {
+    /* Where a CS2 server should reach this API: a public address it can resolve,
+       which in development is a tunnel rather than localhost. Same setting the
+       start-match command uses when it points a server at its config. */
+    private string PublicUrl() =>
+        (config["Api:PublicUrl"] ?? config["FLICKED_API_PUBLIC_URL"]
+         ?? config["Steam:PublicUrl"] ?? "http://localhost:5165").TrimEnd('/');
+
     /* The match config, in MatchZy's format.
 
        Token-protected rather than public: it lists every player's Steam ID, and
        matchzy_loadmatch_url can send a header, so there is no reason to leave it
        open. */
+    public const string ConfigTokenHeader = "X-Match-Token";
+
     [HttpGet("{id:int}/config")]
     public async Task<IActionResult> Config(int id, CancellationToken ct)
     {
-        var server = await auth.GetAsync(ct);
-        if (server is null) return Unauthorized();
+        /* Authenticated by the per-match token, not the server's: the command that
+           sends a server here has to carry a secret in plaintext, and the server's
+           own token only exists as a hash. */
+        var presented = Request.Headers[ConfigTokenHeader].ToString();
+        if (string.IsNullOrWhiteSpace(presented)) return Unauthorized();
 
         var match = await db.Matches
             .Include(m => m.Players).ThenInclude(mp => mp.Player)
@@ -43,11 +56,10 @@ public class MatchServerController(
 
         if (match is null) return NotFound();
 
-        // A server may only read the match it was actually given.
-        if (server.CurrentMatchId != match.Id)
+        if (match.ConfigTokenHash is null || match.ConfigTokenHash != Secrets.Hash(presented.Trim()))
         {
-            log.LogWarning("Server {Name} asked for match {MatchId}, which is not its own", server.Name, id);
-            return Forbidden();
+            log.LogWarning("Bad config token for match {MatchId}", id);
+            return Unauthorized();
         }
 
         /* Players are keyed by Steam64: it is the only identifier MatchZy accepts.
@@ -67,7 +79,20 @@ public class MatchServerController(
             players_per_team = Math.Max(1, match.Players.Count / 2),
             team1 = new { name = "Team A", players = Roster(match.Players.Where(p => p.Team == 0)) },
             team2 = new { name = "Team B", players = Roster(match.Players.Where(p => p.Team == 1)) },
-            cvars = new Dictionary<string, string> { ["hostname"] = $"FLICKED #{match.Id}" },
+            /* MatchZy applies these before it sends its first event, so the
+               reporting settings ride along with the match instead of having to be
+               edited into server.cfg by hand.
+
+               The credential is the token this request arrived with: the caller
+               already knows it, it is worth exactly one match, and the server's
+               long-lived token never has to leave the dashboard. */
+            cvars = new Dictionary<string, string>
+            {
+                ["hostname"] = $"FLICKED #{match.Id}",
+                ["matchzy_remote_log_url"] = $"{PublicUrl()}/api/matches/events",
+                ["matchzy_remote_log_header_key"] = ConfigTokenHeader,
+                ["matchzy_remote_log_header_value"] = presented.Trim(),
+            },
         });
     }
 
@@ -84,24 +109,57 @@ public class MatchServerController(
     [HttpPost("events")]
     public async Task<IActionResult> Events([FromBody] MatchZyEvent body, CancellationToken ct)
     {
-        var server = await auth.GetAsync(ct);
-        if (server is null) return Unauthorized();
-
         if (string.IsNullOrWhiteSpace(body.Event)) return BadRequest("No event.");
         if (!int.TryParse(body.MatchId, out var matchId)) return BadRequest("No match id.");
 
-        if (server.CurrentMatchId != matchId)
-        {
-            /* Not an error worth failing on: a server restarting can replay an
-               event for a match we already finished and released. Logged and
-               accepted, so the plugin does not keep hold of it. */
-            log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which is not its own",
-                server.Name, body.Event, matchId);
-            return Ok();
-        }
-
         var match = await db.Matches.FirstOrDefaultAsync(m => m.Id == matchId, ct);
         if (match is null) return NotFound();
+
+        /* Two ways a server can prove itself:
+
+             its own long-lived token, set up by an admin, or
+             the per-match token the match config handed it.
+
+           The second is what makes this work with stock MatchZy: the config we
+           serve tells the server where to report and what to send, so nothing has
+           to be configured on the server by hand. */
+        var server = await auth.GetAsync(ct);
+        var presented = Request.Headers[ConfigTokenHeader].ToString().Trim();
+        var matchTokenOk = presented.Length > 0
+                        && match.ConfigTokenHash is not null
+                        && match.ConfigTokenHash == Secrets.Hash(presented);
+
+        if (server is null && !matchTokenOk)
+        {
+            /* Logged loudly on purpose. MatchZy neither retries nor reports a
+               rejected post to anyone who will see it, so a wrong credential is
+               otherwise silent at both ends. */
+            log.LogWarning("Event {Event} for match {MatchId} rejected: no valid token", body.Event, matchId);
+            return Unauthorized();
+        }
+
+        // With only a match token we still want the server, to release it later.
+        server ??= await db.Servers.FirstOrDefaultAsync(s => s.CurrentMatchId == matchId, ct);
+
+        /* Normally the server reporting is the one holding the match. It may not
+           be: if nothing extended the lease, the sweep will have released it while
+           the match was still being played. Throwing the result away in that case
+           would lose a real game that really happened, so a finished match is
+           still saved. Anything else is ignored, since the server is not the
+           authority on a match it no longer holds. */
+        var holdsMatch = server is null || server.CurrentMatchId == matchId;
+        if (!holdsMatch)
+        {
+            log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which it no longer holds",
+                server!.Name, body.Event, matchId);
+
+            if (body.Event is "series_end" or "map_result" && match.Status != MatchStatus.Finished)
+            {
+                await SaveResultAsync(match, body, ct);
+                log.LogInformation("Match {MatchId} finished {A}-{B} (late report)", matchId, match.ScoreA, match.ScoreB);
+            }
+            return Ok();
+        }
 
         switch (body.Event)
         {
@@ -112,8 +170,8 @@ public class MatchServerController(
                     match.PlayedAt = DateTimeOffset.UtcNow;
                     await db.SaveChangesAsync(ct);
                     // the five-minute "waiting for players" lease becomes a match-length one
-                    await pool.MarkHostingAsync(server.Id, ct);
-                    log.LogInformation("Match {MatchId} is live on {Server}", matchId, server.Name);
+                    if (server is not null) await pool.MarkHostingAsync(server.Id, ct);
+                    log.LogInformation("Match {MatchId} is live on {Server}", matchId, server?.Name ?? "an unknown server");
                 }
                 break;
 
@@ -123,15 +181,17 @@ public class MatchServerController(
                 if (match.Status != MatchStatus.Finished)
                 {
                     await SaveResultAsync(match, body, ct);
-                    await pool.ReleaseAsync(server.Id, ct);
+                    if (server is not null) await pool.ReleaseAsync(server.Id, ct);
                     log.LogInformation("Match {MatchId} finished {A}-{B}", matchId, match.ScoreA, match.ScoreB);
                 }
                 break;
 
             default:
-                // round_end, player_disconnect, demo_upload_ended and the rest:
-                // accepted so the plugin stops, stored when there is a use for them
-                log.LogDebug("Ignoring {Event} for match {MatchId}", body.Event, matchId);
+                /* round_end, series_start, player_disconnect and the rest: accepted
+                   and not stored yet. Logged at information rather than debug so
+                   that "is the server reporting at all?" is answerable from the
+                   ordinary log, which is the first question whenever this breaks. */
+                log.LogInformation("Event {Event} received for match {MatchId}", body.Event, matchId);
                 break;
         }
 

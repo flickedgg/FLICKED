@@ -23,6 +23,8 @@ public class PoolJanitor(IServiceScopeFactory scopes, ILogger<PoolJanitor> log) 
                 using var scope = scopes.CreateScope();
                 var pool = scope.ServiceProvider.GetRequiredService<ServerPool>();
                 await pool.SweepAsync(stopping);
+                // and ask each free server whether it is still there
+                await pool.CheckAsync(stopping);
             }
             catch (OperationCanceledException) when (stopping.IsCancellationRequested)
             {

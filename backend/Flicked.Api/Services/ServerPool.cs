@@ -9,14 +9,15 @@ namespace Flicked.Api.Services;
    This is the heart of the pool, and the only place in FLICKED where two things
    can genuinely happen at the same instant: two matches filling up together and
    both reaching for the last free server. */
-public class ServerPool(FlickedDbContext db, ILogger<ServerPool> log)
+public class ServerPool(FlickedDbContext db, Rcon rcon, ServerSecrets secrets, ILogger<ServerPool> log)
 {
     /// No heartbeat for this long and a server stops being handed out.
     public static readonly TimeSpan Silence = TimeSpan.FromSeconds(90);
 
-    /// A claimed server waiting for players. Long enough to load a map, short
-    /// enough that an abandoned match returns it quickly.
-    public static readonly TimeSpan ReserveLease = TimeSpan.FromMinutes(5);
+    /* A claimed server waiting for players. Long enough for a map to load, ten
+       people to connect and everyone to ready up, which five minutes was not. If
+       the match never starts, the pool waits this long before taking it back. */
+    public static readonly TimeSpan ReserveLease = TimeSpan.FromMinutes(20);
 
     /// A match in progress. Longer than any real CS2 match, so this only fires
     /// when something has gone wrong and nobody reported the result.
@@ -110,6 +111,45 @@ public class ServerPool(FlickedDbContext db, ILogger<ServerPool> log)
          handed out. It comes back by itself on the next heartbeat.
 
        Returns what it changed, which is what the tests assert on. */
+    /* Is each server actually there?
+
+       MatchZy does not call us, so nothing would ever move a server out of
+       Offline on its own. Rather than require a custom plugin, the backend asks:
+       an RCON round trip proves the machine is up, the password still works and
+       the port is open, which is exactly the channel a match needs. A server that
+       answers becomes Idle; one that does not becomes Offline.
+
+       Servers in a match are left alone: their lease decides, and a slow reply
+       should not interrupt ten people playing. */
+    public async Task<int> CheckAsync(CancellationToken ct = default)
+    {
+        var servers = await db.Servers
+            .Where(s => s.IsEnabled && (s.Status == ServerStatus.Idle || s.Status == ServerStatus.Offline))
+            .ToListAsync(ct);
+
+        var changed = 0;
+        foreach (var server in servers)
+        {
+            var password = secrets.TryDecrypt(server.RconPasswordEncrypted);
+            if (password is null) continue;   // nothing to check with; admin must set it again
+
+            // "echo" is the cheapest command that proves the whole path works
+            var alive = await rcon.RunAsync(server.Host, server.Port, password, "echo flicked_ping", ct) is not null;
+            var status = alive ? ServerStatus.Idle : ServerStatus.Offline;
+
+            if (alive) server.LastSeenAt = DateTimeOffset.UtcNow;
+            if (server.Status != status)
+            {
+                log.LogInformation("Server {Name} is now {Status}", server.Name, status);
+                server.Status = status;
+                changed++;
+            }
+        }
+
+        if (servers.Count > 0) await db.SaveChangesAsync(ct);
+        return changed;
+    }
+
     public async Task<(int reclaimed, int offline)> SweepAsync(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;

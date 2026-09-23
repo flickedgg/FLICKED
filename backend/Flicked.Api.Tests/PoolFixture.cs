@@ -2,6 +2,7 @@ using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flicked.Api.Tests;
@@ -48,7 +49,13 @@ public class PoolFixture : IAsyncLifetime
        and the test would pass without proving anything. */
     public FlickedDbContext NewContext() => new(Options(ConnectionString));
 
-    public ServerPool NewPool(FlickedDbContext db) => new(db, NullLogger<ServerPool>.Instance);
+    /* The pool now talks RCON when checking liveness, so the tests build it with
+       real collaborators; nothing they exercise here makes an RCON call. */
+    public ServerPool NewPool(FlickedDbContext db) => new(
+        db,
+        new Rcon(NullLogger<Rcon>.Instance),
+        new ServerSecrets(DataProtectionProvider.Create("flicked-tests")),
+        NullLogger<ServerPool>.Instance);
 
     private static DbContextOptions<FlickedDbContext> Options(string connectionString) =>
         new DbContextOptionsBuilder<FlickedDbContext>().UseNpgsql(connectionString).Options;
