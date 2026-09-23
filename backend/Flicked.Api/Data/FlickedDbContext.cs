@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Flicked.Api.Models;
 namespace Flicked.Api.Data;
 
@@ -99,13 +99,16 @@ public class FlickedDbContext : DbContext
             .IsUnique()
             .HasFilter("\"SteamId\" IS NOT NULL");
 
+        // readable in the database, like the other enums here
+        modelBuilder.Entity<Match>().Property(m => m.Status).HasConversion<string>().HasMaxLength(16);
+
         modelBuilder.Entity<Match>().HasData(
-            new Match { Id = 48213, Map = "de_mirage",  ScoreA = 13, ScoreB = 9,  PlayedAt = new DateTimeOffset(2026, 9, 21, 18, 40, 0, TimeSpan.Zero) },
-            new Match { Id = 48190, Map = "de_inferno", ScoreA = 10, ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 21, 17,  5, 0, TimeSpan.Zero) },
-            new Match { Id = 48122, Map = "de_nuke",    ScoreA = 13, ScoreB = 4,  PlayedAt = new DateTimeOffset(2026, 9, 20, 21, 30, 0, TimeSpan.Zero) },
-            new Match { Id = 48077, Map = "de_ancient", ScoreA = 13, ScoreB = 11, PlayedAt = new DateTimeOffset(2026, 9, 20, 20,  0, 0, TimeSpan.Zero) },
-            new Match { Id = 47951, Map = "de_anubis",  ScoreA = 7,  ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 19, 22, 10, 0, TimeSpan.Zero) },
-            new Match { Id = 47903, Map = "de_dust2",   ScoreA = 13, ScoreB = 10, PlayedAt = new DateTimeOffset(2026, 9, 18, 21, 15, 0, TimeSpan.Zero) }
+            new Match { Id = 48213, Map = "de_mirage",  ScoreA = 13, ScoreB = 9,  PlayedAt = new DateTimeOffset(2026, 9, 21, 18, 40, 0, TimeSpan.Zero), Status = MatchStatus.Finished },
+            new Match { Id = 48190, Map = "de_inferno", ScoreA = 10, ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 21, 17,  5, 0, TimeSpan.Zero), Status = MatchStatus.Finished },
+            new Match { Id = 48122, Map = "de_nuke",    ScoreA = 13, ScoreB = 4,  PlayedAt = new DateTimeOffset(2026, 9, 20, 21, 30, 0, TimeSpan.Zero), Status = MatchStatus.Finished },
+            new Match { Id = 48077, Map = "de_ancient", ScoreA = 13, ScoreB = 11, PlayedAt = new DateTimeOffset(2026, 9, 20, 20,  0, 0, TimeSpan.Zero), Status = MatchStatus.Finished },
+            new Match { Id = 47951, Map = "de_anubis",  ScoreA = 7,  ScoreB = 13, PlayedAt = new DateTimeOffset(2026, 9, 19, 22, 10, 0, TimeSpan.Zero), Status = MatchStatus.Finished },
+            new Match { Id = 47903, Map = "de_dust2",   ScoreA = 13, ScoreB = 10, PlayedAt = new DateTimeOffset(2026, 9, 18, 21, 15, 0, TimeSpan.Zero), Status = MatchStatus.Finished }
         );
 
         modelBuilder.Entity<MatchPlayer>().HasData(
