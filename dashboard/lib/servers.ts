@@ -70,3 +70,13 @@ export const deleteServer = (id: number) =>
 
 export const rotateToken = (id: number) =>
   send<{ token: string }>(`${base}/${id}/token`, { method: "POST" });
+
+/* Claims the server for that match and tells it, over RCON, where to fetch the
+   config. The manual stand-in for the matchmaker, which will call the same
+   endpoint once players can queue. */
+export const startMatch = (id: number, matchId: number) =>
+  send<{ server: Server; id: number; rcon: string }>(`${base}/${id}/start-match`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ matchId }),
+  });

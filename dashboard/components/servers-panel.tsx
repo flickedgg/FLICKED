@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ServerForm } from "@/components/server-form";
 import {
-  addServer, deleteServer, editServer, listServers, rotateToken,
+  addServer, deleteServer, editServer, listServers, rotateToken, startMatch,
   type Server, type ServerForm as Form,
 } from "@/lib/servers";
 
@@ -21,6 +21,8 @@ export function ServersPanel() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Server | null>(null);
   const [token, setToken] = useState<{ name: string; value: string } | null>(null);
+  const [starting, setStarting] = useState<Server | null>(null);
+  const [matchId, setMatchId] = useState("");
 
   const reload = useCallback(async () => {
     try {
@@ -65,6 +67,16 @@ export function ServersPanel() {
     act(() => deleteServer(server.id));
   };
 
+  /* Until the matchmaker exists, a match is started by hand: pick a server, name
+     a match, and the backend claims it and sends the RCON command. */
+  const start = (server: Server) => act(async () => {
+    const id = Number(matchId);
+    if (!id) throw new Error("Enter a match id.");
+    await startMatch(server.id, id);
+    setStarting(null);
+    setMatchId("");
+  });
+
   const newToken = (server: Server) => act(async () => {
     const { token } = await rotateToken(server.id);
     setToken({ name: server.name, value: token });
@@ -95,6 +107,32 @@ export function ServersPanel() {
           <button onClick={() => setToken(null)} className="btn btn-outline mt-4 h-9 px-4 text-[13px]">
             <span>I have copied it</span>
           </button>
+        </div>
+      )}
+
+      {starting && (
+        <div className="panel-1 mt-6 rounded-xl p-6">
+          <p className="stat-k">Start a match on {starting.name}</p>
+          <p className="mt-2 text-[13.5px] text-muted">
+            The backend claims the server and tells it, over RCON, where to fetch the match
+            config. Use one of the seeded match ids (48213, 48190, …) for a test.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <input
+              value={matchId}
+              onChange={e => setMatchId(e.target.value)}
+              placeholder="48213"
+              inputMode="numeric"
+              className="w-40 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-[14px] text-foreground outline-none focus:border-primary/60"
+            />
+            <button onClick={() => start(starting)} disabled={busy} className="btn btn-primary">
+              <span>{busy ? "Starting…" : "Start match"}</span>
+            </button>
+            <button onClick={() => setStarting(null)} className="btn btn-outline">
+              <span>Cancel</span>
+            </button>
+          </div>
+          {error && <p className="mt-4 text-[13.5px] text-primary-light">{error}</p>}
         </div>
       )}
 
@@ -141,6 +179,8 @@ export function ServersPanel() {
                   <td className="px-5 py-4"><Status server={s} /></td>
                   <td className="px-5 py-4">
                     <span className="flex flex-wrap justify-end gap-2">
+                      <Action onClick={() => { setStarting(s); setError(null); }}
+                              disabled={busy || s.status !== "Idle"}>Start match</Action>
                       <Action onClick={() => setEditing(s)} disabled={busy}>Edit</Action>
                       <Action onClick={() => newToken(s)} disabled={busy}>New token</Action>
                       <Action onClick={() => remove(s)} disabled={busy} danger>Remove</Action>
