@@ -1,80 +1,127 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAP_POOL } from "../data/demo";
+import { MAP_CODE, MAP_NAME } from "../data/demo";
+import {
+  connectToMatch, queueAccept, queueDecline, queueJoin, queueLeave, queueState, queueVote,
+  type QueueState,
+} from "../lib/queue";
 
 export type Phase = "idle" | "searching" | "found" | "vote" | "connecting";
 
 export const ACCEPT_SECONDS = 20;
 export const VOTE_SECONDS = 15;
-const PLAYERS = 10;
 
 export type Queue = ReturnType<typeof useQueue>;
 
-/* Matchmaking state: search → accept → map vote → connect.
-   The timings and the other nine votes are simulated until the backend
-   pushes real queue events; the phases and actions are what the UI will keep. */
+/* The real matchmaking state, polled from the backend.
+
+   The backend owns every decision here: who you are matched with, whether the
+   vote has ended, which map won. This hook only asks and renders. It polls
+   rather than holding a live connection, which is enough at this size; SignalR
+   would replace the polling without changing anything a screen reads.
+
+   Maps travel as server codes ("de_nuke") and are shown as names ("Nuke"), so
+   the conversion happens here rather than in five components. */
 export function useQueue() {
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [startedAt, setStartedAt] = useState(0);
-  const [label, setLabel] = useState("");            // what is being searched, e.g. "Competitive"
-  const [voteEndsAt, setVoteEndsAt] = useState(0);
-  const [others, setOthers] = useState<string[]>([]); // maps voted by the other players, one entry per vote
-  const [myVote, setMyVote] = useState<string | null>(null);
-  const [map, setMap] = useState<string | null>(null); // the vote winner
+  const [state, setState] = useState<QueueState | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const timers = useRef<number[]>([]);
-  const later = (fn: () => void, ms: number) => { timers.current.push(window.setTimeout(fn, ms)); };
-  const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
-  useEffect(() => clear, []);
+  // remembered across phases: the backend only names the mode while searching
+  const label = useRef("Competitive");
 
-  // latest votes for the end-of-vote timer, without restarting it on every vote
-  const votes = useRef({ others, myVote });
-  votes.current = { others, myVote };
+  /* Matches already connected to, so CS2 is launched once per match rather than
+     on every poll. Remembered by match id, not a boolean, so a second match in
+     the same session still connects. */
+  const connected = useRef(new Set<number>());
 
-  const start = useCallback((what: string) => {
-    clear();
-    setLabel(what);
-    setStartedAt(Date.now());
-    setPhase("searching");
-    later(() => {
-      setPhase("found");
-      // nobody answered in time: back to idle
-      later(() => setPhase("idle"), ACCEPT_SECONDS * 1000);
-    }, 6000 + Math.random() * 8000);
-  }, []);
-
-  const cancel = useCallback(() => { clear(); setPhase("idle"); }, []);
-
-  const finishVote = () => {
-    const { others, myVote } = votes.current;
-    const all = myVote ? [...others, myVote] : others;
-    const count = new Map<string, number>();
-    all.forEach(m => count.set(m, (count.get(m) ?? 0) + 1));
-    const top = Math.max(0, ...count.values());
-    const leaders = top ? [...count].filter(([, n]) => n === top).map(([m]) => m) : MAP_POOL;
-    // ties (and no votes at all) are settled by a random pick among the leaders
-    setMap(leaders[Math.floor(Math.random() * leaders.length)]);
-    setPhase("connecting");
-    later(() => setPhase("idle"), 5000);
-  };
-
-  const accept = useCallback(() => {
-    clear();
-    setOthers([]);
-    setMyVote(null);
-    setMap(null);
-    setVoteEndsAt(Date.now() + VOTE_SECONDS * 1000);
-    setPhase("vote");
-    for (let i = 0; i < PLAYERS - 1; i++) {
-      const pick = MAP_POOL[Math.floor(Math.random() * MAP_POOL.length)];
-      later(() => setOthers(v => [...v, pick]), 800 + Math.random() * 9000);
+  const pull = useCallback(async () => {
+    try {
+      const next = await queueState();
+      setState(next);
+      if (next?.mode) label.current = next.mode;
+    } catch {
+      /* A failed poll is not worth showing: the next one is a second away, and
+         a flickering error while queueing would be worse than silence. */
     }
-    later(finishVote, VOTE_SECONDS * 1000);
   }, []);
 
-  const vote = useCallback((m: string) => setMyVote(m), []);
+  /* Polls once a second while anything is happening, and every five seconds when
+     idle. Idle is the common case (the launcher sits open for hours), and there
+     is nothing to learn from asking quickly. */
+  useEffect(() => {
+    let alive = true;
+    let timer: number;
+
+    const loop = async () => {
+      if (!alive) return;
+      await pull();
+      const busy = state?.phase && state.phase !== "idle";
+      timer = window.setTimeout(loop, busy ? 1000 : 5000);
+    };
+
+    loop();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [pull, state?.phase]);
+
+  // every action returns the new state, so the screen updates without waiting
+  // for the next poll
+  const act = useCallback(async (run: () => Promise<QueueState | null>) => {
+    setError(null);
+    try {
+      setState(await run());
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  /* When a server is ready, hand it to Steam. Nobody should have to copy an
+     address out of a launcher: if CS2 is open it joins, and if it is not, Steam
+     starts it. The address is still shown, for when that does not work. */
+  useEffect(() => {
+    const id = state?.matchId;
+    const address = state?.connect;
+    if (!id || !address || connected.current.has(id)) return;
+    if (state?.phase !== "connecting" && state?.phase !== "live") return;
+
+    connected.current.add(id);
+    connectToMatch(address, state.connectPassword ?? null).catch(e => setError(String(e)));
+  }, [state?.matchId, state?.connect, state?.phase, state?.connectPassword]);
+
+  const phase: Phase = state?.phase === "live" ? "connecting" : (state?.phase as Phase) ?? "idle";
+  const since = state?.since ? Date.parse(state.since) : 0;
 
   return {
-    phase, startedAt, label, voteEndsAt, others, myVote, map,
-    start, cancel, accept, decline: cancel, vote,
+    phase,
+    label: label.current,
+    error,
+
+    /// when the current phase began; the UI counts up from it
+    startedAt: since,
+    /// the vote ends this long after it started
+    voteEndsAt: since + VOTE_SECONDS * 1000,
+
+    matchId: state?.matchId ?? null,
+    accepted: state?.accepted ?? 0,
+    needed: state?.needed ?? 10,
+    youAccepted: state?.youAccepted ?? false,
+
+    // display names, because that is what the screens show
+    myVote: state?.yourVote ? MAP_NAME[state.yourVote] ?? state.yourVote : null,
+    map: state?.map ? MAP_NAME[state.map] ?? state.map : null,
+    votesFor: (name: string) => state?.votes?.[MAP_CODE[name] ?? name] ?? 0,
+    votesCast: Object.values(state?.votes ?? {}).reduce((a, b) => a + b, 0),
+
+    /// "77.83.242.101:27015" once a server is holding the match
+    connect: state?.connect ?? null,
+
+    /// join again by hand, if Steam did not pick it up the first time
+    joinServer: () => {
+      if (state?.connect) connectToMatch(state.connect, state.connectPassword ?? null).catch(e => setError(String(e)));
+    },
+
+    start: (mode: string) => act(() => queueJoin(mode)),
+    cancel: () => act(queueLeave),
+    accept: () => act(queueAccept),
+    decline: () => act(queueDecline),
+    vote: (name: string) => act(() => queueVote(MAP_CODE[name] ?? name)),
   };
 }

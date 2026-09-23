@@ -21,6 +21,13 @@ pub fn run() {
             api::accept_friend,
             api::remove_friend_request,
             api::remove_friend,
+            api::queue_state,
+            api::queue_join,
+            api::queue_leave,
+            api::queue_accept,
+            api::queue_decline,
+            api::queue_vote,
+            api::connect_to_match,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

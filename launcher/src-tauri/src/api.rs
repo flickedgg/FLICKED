@@ -31,6 +31,11 @@ async fn send(method: Method, url: Url) -> Result<Option<Value>, String> {
         .await
         .map_err(|e| format!("Could not reach the server: {e}"))?;
 
+    read_reply(response).await
+}
+
+/// Ok(None) for "not signed in", Err with the server's own words when it refused.
+async fn read_reply(response: reqwest::Response) -> Result<Option<Value>, String> {
     if response.status() == StatusCode::UNAUTHORIZED {
         return Ok(None);
     }
@@ -55,6 +60,23 @@ async fn send(method: Method, url: Url) -> Result<Option<Value>, String> {
 
 async fn get(path: &str) -> Result<Option<Value>, String> {
     send(Method::GET, url(path)?).await
+}
+
+/// Same as send(), with a JSON body.
+async fn send_json(method: Method, url: Url, body: Value) -> Result<Option<Value>, String> {
+    let Some(token) = read_token() else {
+        return Ok(None);
+    };
+
+    let response = reqwest::Client::new()
+        .request(method, url)
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the server: {e}"))?;
+
+    read_reply(response).await
 }
 
 /// `API` plus a path we wrote ourselves, so parsing can only fail if that
@@ -122,4 +144,80 @@ pub async fn remove_friend_request(player_id: i64) -> Result<Option<Value>, Stri
 #[tauri::command]
 pub async fn remove_friend(player_id: i64) -> Result<Option<Value>, String> {
     send(Method::DELETE, player_url("/api/friends/", player_id, "")?).await
+}
+
+/* Matchmaking.
+
+   Every one of these is about the signed-in player, so they go through here
+   rather than the webview: the backend works out who is queueing from the token,
+   and the interface cannot queue, accept or vote on anybody else's behalf. */
+
+/// Where this player is: idle, searching, found, vote, connecting or live.
+#[tauri::command]
+pub async fn queue_state() -> Result<Option<Value>, String> {
+    get("/api/queue").await
+}
+
+#[tauri::command]
+pub async fn queue_join(mode: String) -> Result<Option<Value>, String> {
+    send_json(Method::POST, url("/api/queue")?, serde_json::json!({ "mode": mode })).await
+}
+
+#[tauri::command]
+pub async fn queue_leave() -> Result<Option<Value>, String> {
+    send(Method::DELETE, url("/api/queue")?).await
+}
+
+#[tauri::command]
+pub async fn queue_accept() -> Result<Option<Value>, String> {
+    send(Method::POST, url("/api/queue/accept")?).await
+}
+
+#[tauri::command]
+pub async fn queue_decline() -> Result<Option<Value>, String> {
+    send(Method::POST, url("/api/queue/decline")?).await
+}
+
+#[tauri::command]
+pub async fn queue_vote(map: String) -> Result<Option<Value>, String> {
+    send_json(Method::POST, url("/api/queue/vote")?, serde_json::json!({ "map": map })).await
+}
+
+/* Joining the match server.
+
+   Steam's own URL scheme, which is how every CS2 community server is joined:
+   steam://connect/host:port, or with the server's game password appended. Steam
+   hands it to CS2 if it is already running, and starts it if it is not.
+
+   The address comes from the backend, but is checked here anyway: it ends up in
+   a URL handed to the operating system, and "it came from our own API" is a
+   weaker guarantee than looking. */
+#[tauri::command]
+pub async fn connect_to_match(
+    app: tauri::AppHandle,
+    address: String,
+    password: Option<String>,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let (host, port) = address.split_once(':').ok_or("That server address is malformed.")?;
+
+    let host_ok = !host.is_empty()
+        && host.len() <= 253
+        && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+    let port_ok = port.parse::<u16>().map(|p| p > 0).unwrap_or(false);
+    if !host_ok || !port_ok {
+        return Err("That server address is malformed.".into());
+    }
+
+    let url = match password.as_deref() {
+        // a password with a slash or space in it would break the URL
+        Some(p) if !p.is_empty() && p.chars().all(|c| c.is_ascii_graphic() && c != '/') =>
+            format!("steam://connect/{address}/{p}"),
+        _ => format!("steam://connect/{address}"),
+    };
+
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| format!("Could not hand the server to Steam: {e}"))
 }

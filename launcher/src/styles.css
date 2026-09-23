@@ -760,6 +760,8 @@ img.account-av{ object-fit:cover; background:rgba(255,255,255,.04); }
 .mf-title{ margin-top:10px; font-size:56px; line-height:.9; }
 .mf-note{ display:inline-flex; align-items:center; gap:9px; margin-top:16px; font-size:13.5px; color:var(--subtle); }
 .mf-actions{ display:grid; grid-template-columns:1fr 2fr; gap:10px; }
+/* one button on its own, unlike the decline/accept pair above */
+.mf-join{ display:flex; justify-content:center; margin-top:18px; }
 .mf-actions .btn{ height:46px; }
 
 /* shared countdown: drains once over --dur */
@@ -794,6 +796,22 @@ img.account-av{ object-fit:cover; background:rgba(255,255,255,.04); }
   transition:border-color .2s, transform .2s var(--ease), background-color .2s;
 }
 .map-card:hover{ border-color:var(--line-strong); transform:translateY(-2px); }
+
+/* map art: behind everything, dimmed, and brighter on the card you picked.
+   The gradient over it is what keeps the name and the vote count readable. */
+.map-card{ overflow:hidden; isolation:isolate; }
+.map-art{
+  position:absolute; inset:0; z-index:-1;
+  width:100%; height:100%; object-fit:cover;
+  opacity:.34; filter:saturate(.75);
+  transition:opacity .25s var(--ease), transform .25s var(--ease);
+}
+.map-card::after{
+  content:""; position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(180deg,rgba(12,12,13,.35) 0%,rgba(12,12,13,.82) 62%,rgba(12,12,13,.94) 100%);
+}
+.map-card:hover .map-art{ opacity:.46; transform:scale(1.04); }
+.map-card.is-mine .map-art{ opacity:.5; filter:none; }
 .map-code{ font-family:var(--ff-mono); font-size:10px; letter-spacing:.04em; color:var(--faint); }
 .map-name{ margin-top:auto; font-size:26px; line-height:.95; overflow-wrap:anywhere; }
 

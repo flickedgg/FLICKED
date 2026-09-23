@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import { MAP_CODE, MAP_POOL } from "../data/demo";
+import { MAP_IMAGE } from "../lib/maps";
 import { ACCEPT_SECONDS, VOTE_SECONDS, type Queue } from "../hooks/useQueue";
 import { Countdown } from "./Elapsed";
 
@@ -14,18 +15,23 @@ function Found({ queue }: { queue: Queue }) {
     <div className="mf panel-2">
       <p className="eyebrow">{queue.label}</p>
       <h2 id="mf-title" className="display mf-title">Match <span className="accent">found</span></h2>
+      <p className="mf-note">{queue.accepted} of {queue.needed} accepted</p>
       <div className="timer-bar" style={bar(ACCEPT_SECONDS)} />
       <div className="mf-actions">
         <button className="btn btn-outline" onClick={queue.decline}>Decline</button>
-        <button ref={acceptRef} className="btn btn-primary btn-lg" onClick={queue.accept}>Accept</button>
+        <button ref={acceptRef} className="btn btn-primary btn-lg"
+                onClick={queue.accept} disabled={queue.youAccepted}>
+          {queue.youAccepted ? "Waiting for others…" : "Accept"}
+        </button>
       </div>
     </div>
   );
 }
 
 function Vote({ queue }: { queue: Queue }) {
-  const count = (m: string) => queue.others.filter(v => v === m).length + (queue.myVote === m ? 1 : 0);
-  const cast = queue.others.length + (queue.myVote ? 1 : 0);
+  // tallies come from the backend: every player's vote, counted server-side
+  const count = (m: string) => queue.votesFor(m);
+  const cast = queue.votesCast;
   const top = Math.max(...MAP_POOL.map(count));
 
   return (
@@ -54,6 +60,9 @@ function Vote({ queue }: { queue: Queue }) {
               className={`map-card${mine ? " is-mine" : ""}${n > 0 && n === top ? " is-leading" : ""}`}
               onClick={() => queue.vote(m)}
             >
+              {/* the art sits behind the card's own gradient, so the text on top
+                  keeps its contrast whatever the screenshot looks like */}
+              <img className="map-art" src={MAP_IMAGE[m]} alt="" loading="lazy" />
               <span className="map-code">{MAP_CODE[m]}</span>
               <b className="display map-name">{m}</b>
               <span className="map-votes">
@@ -78,6 +87,13 @@ function Connecting({ queue }: { queue: Queue }) {
       <p className="eyebrow">Map selected · {queue.map && MAP_CODE[queue.map]}</p>
       <h2 id="mf-title" className="display mf-title">{queue.map}</h2>
       <p className="mf-note"><i className="live-dot" />Starting your server and connecting all 10 players…</p>
+      {queue.connect && (
+        /* CS2 is handed the server automatically; this is for when that does not
+           take, or when the game was closed and Steam is still starting. */
+        <div className="mf-join">
+          <button className="btn btn-primary btn-lg" onClick={queue.joinServer}>Join the server</button>
+        </div>
+      )}
     </div>
   );
 }
