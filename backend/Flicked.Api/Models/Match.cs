@@ -7,10 +7,12 @@ namespace Flicked.Api.Models;
    it needs somewhere to say so. */
 public enum MatchStatus
 {
-    Pending,     // created, server claimed, waiting for players to connect
+    Accepting,   // ten players found; waiting for everyone to accept
+    Voting,      // everyone accepted; picking the map
+    Pending,     // map chosen and a server claimed; waiting for players to connect
     Live,        // MatchZy said going_live
     Finished,    // a result came back
-    Cancelled,   // never started: nobody connected, or no server was free
+    Cancelled,   // somebody declined, nobody connected, or no server was free
 }
 
 public class Match

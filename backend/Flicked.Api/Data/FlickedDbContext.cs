@@ -14,6 +14,7 @@ public class FlickedDbContext : DbContext
     public DbSet<Friendship> Friendships => Set<Friendship>();
 
     public DbSet<GameServer> Servers => Set<GameServer>();
+    public DbSet<QueueEntry> Queue => Set<QueueEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,20 @@ public class FlickedDbContext : DbContext
             friendship.HasIndex(f => new { f.RequesterId, f.AddresseeId }).IsUnique();
             friendship.HasIndex(f => f.AddresseeId);   // "requests sent to me"
             friendship.Property(f => f.Status).HasConversion<string>().HasMaxLength(16);
+        });
+
+        modelBuilder.Entity<QueueEntry>(entry =>
+        {
+            /* One queue entry per player: joining twice, or queueing for both
+               modes at once, would let somebody be matched into two matches. */
+            entry.HasIndex(q => q.PlayerId).IsUnique();
+            entry.HasIndex(q => new { q.Mode, q.JoinedAt });   // how the matchmaker reads it
+            entry.Property(q => q.Mode).HasConversion<string>().HasMaxLength(16);
+
+            entry.HasOne(q => q.Player)
+                .WithMany()
+                .HasForeignKey(q => q.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();
