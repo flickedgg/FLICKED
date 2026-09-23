@@ -60,6 +60,7 @@ Why these lines are drawn where they are: [ROADMAP.md](./ROADMAP.md).
 | `./launcher/` | Desktop launcher |
 | `./docker-compose.yml` | PostgreSQL for local development |
 | `./DESIGN.md` | The design system shared by the website and launcher |
+| `./ARCHITECTURE.md` | How the pieces fit together, with diagrams |
 | `./ROADMAP.md` | What's next, and why the plan looks like this |
 
 ## Running it locally
