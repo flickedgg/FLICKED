@@ -67,6 +67,67 @@ public class PoolFixture : IAsyncLifetime
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Servers\"");
     }
 
+    /* Matchmaking helpers. Players made here are throwaway rows with no Steam
+       account, which is all the matchmaker cares about. */
+
+    public async Task ResetMatchmakingAsync()
+    {
+        await using var db = NewContext();
+        // order matters: match rows reference players, queue rows reference players
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Queue\"");
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM \"MatchPlayers\" WHERE \"PlayerId\" IN (SELECT \"Id\" FROM \"Players\" WHERE \"Name\" LIKE 'test-%')");
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM \"Matches\" WHERE \"Id\" NOT IN (48213, 48190, 48122, 48077, 47951, 47903)");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Players\" WHERE \"Name\" LIKE 'test-%'");
+    }
+
+    public async Task<List<Player>> AddPlayersAsync(int count, int rating)
+    {
+        await using var db = NewContext();
+        var players = Enumerable.Range(0, count)
+            .Select(_ => new Player(0, $"test-{Guid.NewGuid():N}"[..12], rating, 0, 0))
+            .ToList();
+
+        db.Players.AddRange(players);
+        await db.SaveChangesAsync();
+        return players;
+    }
+
+    public async Task QueueAsync(IEnumerable<Player> players, DateTimeOffset? joinedAt = null)
+    {
+        await using var db = NewContext();
+        foreach (var player in players)
+        {
+            db.Queue.Add(new QueueEntry
+            {
+                PlayerId = player.Id,
+                Mode = ServerType.Competitive,
+                JoinedAt = joinedAt ?? DateTimeOffset.UtcNow,
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    /// Marks everyone in the match as having accepted, optionally leaving some out.
+    public async Task AcceptAllAsync(int matchId, int except = 0)
+    {
+        await using var db = NewContext();
+        var rows = await db.MatchPlayers.Where(mp => mp.MatchId == matchId).ToListAsync();
+        foreach (var row in rows.Skip(except)) row.AcceptedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    /// Pushes a match's clock back, so a window that lasts 20 seconds can be
+    /// tested without waiting 20 seconds.
+    public async Task AgeMatchAsync(int matchId, TimeSpan by)
+    {
+        await using var db = NewContext();
+        var match = await db.Matches.SingleAsync(m => m.Id == matchId);
+        match.PlayedAt -= by;
+        await db.SaveChangesAsync();
+    }
+
     public async Task<GameServer> AddServerAsync(string name, ServerStatus status = ServerStatus.Idle,
                                                  DateTimeOffset? lastSeen = null, bool enabled = true)
     {
