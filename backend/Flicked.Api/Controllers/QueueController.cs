@@ -37,7 +37,9 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
         bool YouAccepted,
         string? YourVote,
         string? Map,                     // once the vote is settled
-        string? Connect);                // host:port, once there is a server
+        string? Connect,                 // host:port, once there is a server
+        string? ConnectPassword,         // the server's game password, if it has one
+        Dictionary<string, int> Votes);  // map code -> votes so far, during the vote
 
     [HttpGet]
     public async Task<IActionResult> State(CancellationToken ct)
@@ -74,19 +76,30 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
                 _ => "live",
             };
 
+            /* Vote counts, not who voted for what: the launcher shows a tally, and
+               knowing which teammate picked which map is nobody's business. */
+            var votes = roster
+                .Where(r => r.MapVote is not null)
+                .GroupBy(r => r.MapVote!)
+                .ToDictionary(g => g.Key, g => g.Count());
+
             return Ok(new QueueState(
                 phase, null, match.PlayedAt, match.Id,
                 roster.Count(r => r.AcceptedAt is not null), roster.Count,
                 mine.AcceptedAt is not null, mine.MapVote,
                 string.IsNullOrEmpty(match.Map) ? null : match.Map,
-                server is null ? null : $"{server.Host}:{server.Port}"));
+                server is null ? null : $"{server.Host}:{server.Port}",
+                /* Only the ten people in this match ever see this, and only while
+                   it is theirs: it is how they get in, not a secret from them. */
+                server?.GamePassword,
+                votes));
         }
 
         var waiting = await db.Queue.FirstOrDefaultAsync(q => q.PlayerId == me.Id, ct);
         return waiting is null
-            ? Ok(new QueueState("idle", null, null, null, 0, 0, false, null, null, null))
+            ? Ok(new QueueState("idle", null, null, null, 0, 0, false, null, null, null, null, []))
             : Ok(new QueueState("searching", waiting.Mode.ToString(), waiting.JoinedAt, null,
-                                0, Matchmaker.PlayersFor(waiting.Mode), false, null, null, null));
+                                0, Matchmaker.PlayersFor(waiting.Mode), false, null, null, null, null, []));
     }
 
     [HttpPost]
