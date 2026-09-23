@@ -38,7 +38,7 @@ public class MatchServerController(
        Token-protected rather than public: it lists every player's Steam ID, and
        matchzy_loadmatch_url can send a header, so there is no reason to leave it
        open. */
-    public const string ConfigTokenHeader = "X-Match-Token";
+    public const string ConfigTokenHeader = MatchServerControllerTokens.Header;
 
     [HttpGet("{id:int}/config")]
     public async Task<IActionResult> Config(int id, CancellationToken ct)

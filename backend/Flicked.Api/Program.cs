@@ -40,6 +40,11 @@ builder.Services.AddScoped<ServerPool>();
 builder.Services.AddSingleton<Rcon>();
 builder.Services.AddHostedService<PoolJanitor>();
 
+// Matchmaking: the queue becomes matches, and matches become servers.
+builder.Services.AddScoped<Matchmaker>();
+builder.Services.AddScoped<MatchStarter>();
+builder.Services.AddHostedService<MatchmakerJanitor>();
+
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
