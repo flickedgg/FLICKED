@@ -33,6 +33,12 @@ builder.Services.AddDataProtection()
     .SetApplicationName("flicked");
 builder.Services.AddSingleton<ServerSecrets>();
 
+// The pool: claiming and releasing servers, plus the timer that tidies up after
+// matches that never reported finishing.
+builder.Services.AddScoped<ServerAuth>();
+builder.Services.AddScoped<ServerPool>();
+builder.Services.AddHostedService<PoolJanitor>();
+
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

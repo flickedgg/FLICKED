@@ -1,0 +1,142 @@
+using Flicked.Api.Data;
+using Flicked.Api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace Flicked.Api.Services;
+
+/* Handing servers out, and taking them back.
+
+   This is the heart of the pool, and the only place in FLICKED where two things
+   can genuinely happen at the same instant: two matches filling up together and
+   both reaching for the last free server. */
+public class ServerPool(FlickedDbContext db, ILogger<ServerPool> log)
+{
+    /// No heartbeat for this long and a server stops being handed out.
+    public static readonly TimeSpan Silence = TimeSpan.FromSeconds(90);
+
+    /// A claimed server waiting for players. Long enough to load a map, short
+    /// enough that an abandoned match returns it quickly.
+    public static readonly TimeSpan ReserveLease = TimeSpan.FromMinutes(5);
+
+    /// A match in progress. Longer than any real CS2 match, so this only fires
+    /// when something has gone wrong and nobody reported the result.
+    public static readonly TimeSpan MatchLease = TimeSpan.FromMinutes(90);
+
+    /* Takes a free server for a match, or returns null when there is none.
+
+       The interesting line is FOR UPDATE SKIP LOCKED. Without it, two requests
+       can read the same idle row, both decide it is free, and both claim it: ten
+       players land on a server already running somebody else's match. A plain
+       transaction does not help, because reading does not block reading.
+
+       FOR UPDATE locks the row this transaction picked. SKIP LOCKED tells any
+       other transaction to ignore locked rows and take the next free one instead
+       of queueing behind us. The result is that concurrent claims hand out
+       different servers, and nobody waits. */
+    public async Task<GameServer?> ClaimAsync(ServerType type, int matchId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var alive = now - Silence;
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        // Raw SQL because EF has no way to express FOR UPDATE SKIP LOCKED.
+        // Status and Type are stored as text (see FlickedDbContext).
+        var server = await db.Servers
+            .FromSql($"""
+                SELECT * FROM "Servers"
+                WHERE "IsEnabled"
+                  AND "Status" = 'Idle'
+                  AND "Type" = {type.ToString()}
+                  AND "LastSeenAt" > {alive}
+                ORDER BY "LastSeenAt" DESC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+                """)
+            .FirstOrDefaultAsync(ct);
+
+        if (server is null)
+        {
+            await tx.RollbackAsync(ct);
+            log.LogWarning("No free {Type} server for match {MatchId}", type, matchId);
+            return null;
+        }
+
+        server.Status = ServerStatus.Reserved;
+        server.CurrentMatchId = matchId;
+        server.LeaseUntil = now + ReserveLease;
+
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        log.LogInformation("Server {Name} claimed for match {MatchId}", server.Name, matchId);
+        return server;
+    }
+
+    /// The players have connected: the lease becomes a match-length one.
+    public async Task MarkHostingAsync(int serverId, CancellationToken ct = default)
+    {
+        var server = await db.Servers.FirstOrDefaultAsync(s => s.Id == serverId, ct);
+        if (server is null || server.Status != ServerStatus.Reserved) return;
+
+        server.Status = ServerStatus.Hosting;
+        server.LeaseUntil = DateTimeOffset.UtcNow + MatchLease;
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// Back into the pool. Safe to call twice: releasing a free server does nothing.
+    public async Task ReleaseAsync(int serverId, CancellationToken ct = default)
+    {
+        var server = await db.Servers.FirstOrDefaultAsync(s => s.Id == serverId, ct);
+        if (server is null) return;
+
+        server.Status = ServerStatus.Idle;
+        server.CurrentMatchId = null;
+        server.LeaseUntil = null;
+        await db.SaveChangesAsync(ct);
+
+        log.LogInformation("Server {Name} released", server.Name);
+    }
+
+    /* The safety net, run on a timer.
+
+       Two failures it cleans up:
+
+         a claim nobody ever used, or a match that never reported finishing: the
+         lease runs out and the server goes back into the pool, because otherwise
+         one crash quietly removes a server from the network forever;
+
+         a server that has stopped talking to us: marked offline so it is not
+         handed out. It comes back by itself on the next heartbeat.
+
+       Returns what it changed, which is what the tests assert on. */
+    public async Task<(int reclaimed, int offline)> SweepAsync(CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var expired = await db.Servers
+            .Where(s => s.LeaseUntil != null && s.LeaseUntil < now)
+            .ToListAsync(ct);
+
+        foreach (var server in expired)
+        {
+            log.LogWarning("Lease expired on {Name} (match {MatchId}); returning it to the pool",
+                server.Name, server.CurrentMatchId);
+            server.Status = ServerStatus.Idle;
+            server.CurrentMatchId = null;
+            server.LeaseUntil = null;
+        }
+
+        // Quiet servers stop being handed out. Anything mid-match is left alone:
+        // its lease is the thing that decides, not its silence.
+        var quiet = await db.Servers
+            .Where(s => s.Status == ServerStatus.Idle
+                     && (s.LastSeenAt == null || s.LastSeenAt < now - Silence))
+            .ToListAsync(ct);
+
+        foreach (var server in quiet) server.Status = ServerStatus.Offline;
+
+        if (expired.Count > 0 || quiet.Count > 0) await db.SaveChangesAsync(ct);
+        return (expired.Count, quiet.Count);
+    }
+}
