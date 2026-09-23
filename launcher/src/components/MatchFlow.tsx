@@ -86,7 +86,12 @@ function Connecting({ queue }: { queue: Queue }) {
     <div className="mf panel-2">
       <p className="eyebrow">Map selected · {queue.map && MAP_CODE[queue.map]}</p>
       <h2 id="mf-title" className="display mf-title">{queue.map}</h2>
-      <p className="mf-note"><i className="live-dot" />Starting your server and connecting all 10 players…</p>
+      <p className="mf-note">
+        <i className="live-dot" />
+        {queue.connect
+          ? "Connecting you to the server…"
+          : "Preparing your server. This takes a moment while the map loads."}
+      </p>
       {queue.connect && (
         /* CS2 is handed the server automatically; this is for when that does not
            take, or when the game was closed and Steam is still starting. */

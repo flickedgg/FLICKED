@@ -27,14 +27,59 @@ public class Rcon(ILogger<Rcon> log)
     private const int RunCommand = 2;
     private const int AuthFailed = -1;
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
 
-    /// Runs one command. Returns whatever the server printed, or null if it failed.
+    /* One conversation at a time, per server.
+
+       A Source server accepts a single RCON connection, and FLICKED has two
+       things that talk to servers on their own timers: the pool pinging every
+       thirty seconds, and a match being started. When they overlap, one of them
+       is dropped, and the dropped one is silent: no command runs, nothing is
+       logged on the server, and the caller sees a bare connection failure.
+
+       Keyed by host:port rather than one lock for everything, so a slow server
+       cannot hold up commands to a different one. */
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+
+    /* Runs one command. Returns whatever the server printed, or null if it failed.
+
+       `timeout` is per call because commands differ enormously: an echo answers
+       instantly, while reloading a plugin unloads it, loads it again and runs its
+       configs. Retried a couple of times because RCON over the open internet
+       drops connections for no lasting reason, and a match should not die
+       because one packet went missing. */
     public async Task<string?> RunAsync(string host, int port, string password, string command,
-                                        CancellationToken ct = default)
+                                        CancellationToken ct = default, TimeSpan? timeout = null)
+    {
+        var gate = Locks.GetOrAdd($"{host}:{port}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                var result = await AttemptAsync(host, port, password, command, timeout ?? DefaultTimeout, ct);
+                if (result is not null) return result;
+
+                if (attempt < 3)
+                {
+                    log.LogWarning("RCON to {Host}:{Port} failed (attempt {Attempt}); retrying", host, port, attempt);
+                    await Task.Delay(TimeSpan.FromSeconds(attempt), ct);
+                }
+            }
+
+            return null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<string?> AttemptAsync(string host, int port, string password, string command,
+                                             TimeSpan limit, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(Timeout);
+        timeout.CancelAfter(limit);
 
         try
         {

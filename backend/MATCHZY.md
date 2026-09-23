@@ -99,6 +99,15 @@ Every payload has an `event` field, and every match-scoped one has `matchid`
 **`matchid` arrives as a number in events**, although a match config accepts it as
 a string. Read it leniently or every event is rejected as a type error.
 
+**A server can only load one match per process.** `isMatchSetup` is set to true
+when a config loads and is never set back (`MatchManagement.cs`), so every later
+`matchzy_loadmatch_url` is refused with "A match is already setup with id: …".
+`css_endmatch` does not clear it. FLICKED sends `css_plugins reload MatchZy`
+before each match, which builds a fresh plugin instance and does.
+
+**The refusal is invisible over RCON.** MatchZy logs it to the server console,
+so the RCON reply looks like success. Assume nothing from an empty reply.
+
 **`css_endmatch` does not send `series_end`.** The admin command resets to warmup;
 the event only fires when a match ends naturally. Ending a match by hand is not a
 way to test the reporting path.

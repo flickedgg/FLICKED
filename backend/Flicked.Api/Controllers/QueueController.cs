@@ -88,7 +88,9 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
                 roster.Count(r => r.AcceptedAt is not null), roster.Count,
                 mine.AcceptedAt is not null, mine.MapVote,
                 string.IsNullOrEmpty(match.Map) ? null : match.Map,
-                server is null ? null : $"{server.Host}:{server.Port}",
+                /* Only once the server is confirmed on this match's map: an
+                   address given any earlier drops players onto the last match. */
+                server is null || match.ServerReadyAt is null ? null : $"{server.Host}:{server.Port}",
                 /* Only the ten people in this match ever see this, and only while
                    it is theirs: it is how they get in, not a secret from them. */
                 server?.GamePassword,

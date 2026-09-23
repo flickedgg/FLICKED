@@ -41,6 +41,34 @@ public class ServerPool(FlickedDbContext db, Rcon rcon, ServerSecrets secrets, I
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
+        /* A server this match already holds comes back to it.
+
+           Starting a match takes as long as a map change, and anything that
+           interrupts it partway (a restart, a failed config fetch) leaves the
+           server reserved with the match still Pending. Without this, the retry
+           asks for a free server, finds its own sitting there marked Reserved,
+           and waits for a lease that has twenty minutes to run: the match
+           deadlocks against itself. */
+        var held = await db.Servers
+            .FromSql($"""
+                SELECT * FROM "Servers"
+                WHERE "CurrentMatchId" = {matchId}
+                  AND "Status" = 'Reserved'
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+                """)
+            .FirstOrDefaultAsync(ct);
+
+        if (held is not null)
+        {
+            held.LeaseUntil = now + ReserveLease;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            log.LogInformation("Server {Name} still held for match {MatchId}; reusing it", held.Name, matchId);
+            return held;
+        }
+
         // Raw SQL because EF has no way to express FOR UPDATE SKIP LOCKED.
         // Status and Type are stored as text (see FlickedDbContext).
         var server = await db.Servers

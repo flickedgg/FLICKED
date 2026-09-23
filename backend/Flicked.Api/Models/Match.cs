@@ -33,5 +33,13 @@ public class Match
        hash like every other secret. It is worth exactly one match. */
     public string? ConfigTokenHash { get; set; }
 
+    /* When the server confirmed it is on this match's map.
+
+       Claiming a server and telling it to load a match are instant; the server
+       taking the config, reloading its plugin and changing level are not. Until
+       this is set, sending players the address means they join whatever map was
+       loaded before, which is exactly the bug it exists to prevent. */
+    public DateTimeOffset? ServerReadyAt { get; set; }
+
     public List<MatchPlayer> Players { get; set; } = [];
 }
