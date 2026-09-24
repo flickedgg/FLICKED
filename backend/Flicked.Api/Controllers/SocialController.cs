@@ -40,9 +40,12 @@ namespace Flicked.Api.Controllers;
 [Route("api/social")]
 public class SocialController(FlickedDbContext db, CurrentPlayer current, Social social) : ControllerBase
 {
-    /* The friend shapes are the ones /api/friends already returns, so a client
-       has one Friend type rather than one per endpoint. */
+    /* Who you are comes back with it, because every list here is read relative
+       to you: which member of the party is your own seat, and whether the one
+       who leads it is you. The friend shapes are the ones /api/friends already
+       returns, so a client has one Friend type rather than one per endpoint. */
     public record SocialState(
+        int You,
         List<FriendsController.FriendSummary> Friends,
         List<FriendsController.RequestSummary> Requests,
         Social.PartyView? Party,
@@ -93,7 +96,7 @@ public class SocialController(FlickedDbContext db, CurrentPlayer current, Social
         if (Request.Headers.IfNoneMatch.Contains(etag)) return StatusCode(StatusCodes.Status304NotModified);
 
         Response.Headers.ETag = etag;
-        return Ok(new SocialState(friends, requests, party, invites));
+        return Ok(new SocialState(me.Id, friends, requests, party, invites));
     }
 
     private static string Etag(List<FriendsController.FriendSummary> friends,

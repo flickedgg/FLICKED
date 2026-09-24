@@ -1,11 +1,13 @@
 import { type Ref } from "react";
-import { useFriends } from "../hooks/useFriends";
+import type { Social } from "../hooks/useSocial";
 import type { Friend, FriendRequest, SearchResult } from "../lib/friends";
+import type { PartyInvite } from "../lib/social";
 import { Icon } from "./Icon";
 
-/* Friends, from the backend. Presence (online / in game) is not here yet: it is
-   runtime state rather than a database column, and arrives with 0.5. Party
-   invites come back at the same time, for the same reason. */
+/* Friends and party invites, from the backend, on the one poll they share.
+
+   Presence (online / in game) is not here yet: it is runtime state rather than a
+   database column, and arrives with the push channel that replaces the polling. */
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
   return url
@@ -13,7 +15,12 @@ function Avatar({ name, url }: { name: string; url: string | null }) {
     : <span className="friend-av" aria-hidden="true">{name[0]?.toUpperCase() ?? "?"}</span>;
 }
 
-function FriendRow({ f, onRemove }: { f: Friend; onRemove: () => void }) {
+/* The invite button appears when there is a seat for them and you are the one
+   who may fill it. Hiding it otherwise is a courtesy; the server checks that you
+   lead the party, that they are a friend, and that there is room, regardless. */
+function FriendRow({ f, canInvite, onInvite, onRemove }: {
+  f: Friend; canInvite: boolean; onInvite: () => void; onRemove: () => void;
+}) {
   return (
     <li className="friend">
       <Avatar name={f.name} url={f.avatarUrl} />
@@ -21,9 +28,36 @@ function FriendRow({ f, onRemove }: { f: Friend; onRemove: () => void }) {
         <b>{f.name}</b>
         <small>{f.rating.toLocaleString()} rating</small>
       </span>
+      {canInvite && (
+        <button className="invite-btn" onClick={onInvite}
+                title={`Invite ${f.name} to your party`} aria-label={`Invite ${f.name} to your party`}>
+          <Icon name="plus" size={13} />Invite
+        </button>
+      )}
       <button className="icon-btn is-danger" onClick={onRemove}
               title={`Remove ${f.name}`} aria-label={`Remove ${f.name}`}>
         <Icon name="unlink" size={15} />
+      </button>
+    </li>
+  );
+}
+
+function InviteRow({ i, onJoin, onDecline }: {
+  i: PartyInvite; onJoin: () => void; onDecline: () => void;
+}) {
+  return (
+    <li className="friend">
+      <Avatar name={i.fromName} url={i.fromAvatarUrl} />
+      <span className="friend-who">
+        <b>{i.fromName}</b>
+        <small>invited you to their party</small>
+      </span>
+      <button className="invite-btn" onClick={onJoin} aria-label={`Join ${i.fromName}'s party`}>
+        <Icon name="check" size={13} />Join
+      </button>
+      <button className="icon-btn is-danger" onClick={onDecline}
+              title="Decline" aria-label={`Decline ${i.fromName}'s party invite`}>
+        <Icon name="x" size={15} />
       </button>
     </li>
   );
@@ -110,18 +144,28 @@ function Rail({ friends, onExpand, inactive }: {
   );
 }
 
-export function FriendsPanel({ searchRef, collapsed, onToggle }: {
+export function FriendsPanel({ searchRef, collapsed, onToggle, social, seats }: {
   searchRef: Ref<HTMLInputElement>; collapsed: boolean; onToggle: () => void;
+  social: Social;
+  seats: number;   // how many a party may hold in the mode being played
 }) {
   const {
-    friends, requests, signedOut, error,
+    friends, requests, party, invites, leads, signedOut, error,
     query, setQuery, results, searching,
     add, accept, cancel, remove,
-  } = useFriends();
+  } = social;
 
   const looking = query.trim().length >= 2;
   const incoming = requests.filter(r => r.incoming);
   const outgoing = requests.filter(r => !r.incoming);
+
+  // you, your members and the seats your invites are holding open
+  const taken = party ? party.members.length + party.invited.length : 1;
+  const spoken = new Set([
+    ...(party?.members ?? []).map(m => m.playerId),
+    ...(party?.invited ?? []).map(m => m.playerId),
+  ]);
+  const canInvite = (playerId: number) => leads && taken < seats && !spoken.has(playerId);
 
   // both stay mounted: the column eases between widths while they crossfade,
   // and the hidden one is inert (no focus, no clicks, not read out)
@@ -132,8 +176,12 @@ export function FriendsPanel({ searchRef, collapsed, onToggle }: {
         <div className="friends-head">
           <span className="stat-k">Friends</span>
           <span className="friends-tools">
+            {/* friend requests and party invites both count: they are what is
+                waiting for an answer, and a collapsed panel should say so */}
             <span className="friends-count">
-              {incoming.length > 0 ? `${incoming.length} request${incoming.length > 1 ? "s" : ""}` : friends.length}
+              {incoming.length + invites.length > 0
+                ? `${incoming.length + invites.length} waiting`
+                : friends.length}
             </span>
             <button className="icon-btn" onClick={onToggle} title="Collapse friends" aria-label="Collapse friends">
               <Icon name="chevron-right" size={16} />
@@ -173,6 +221,19 @@ export function FriendsPanel({ searchRef, collapsed, onToggle }: {
             </>
           ) : (
             <>
+              {invites.length > 0 && (
+                <>
+                  <p className="friends-group stat-k">Party invites · {invites.length}</p>
+                  <ul>
+                    {invites.map(i => (
+                      <InviteRow key={i.partyId} i={i}
+                        onJoin={() => social.acceptInvite(i.partyId)}
+                        onDecline={() => social.declineInvite(i.partyId)} />
+                    ))}
+                  </ul>
+                </>
+              )}
+
               {incoming.length > 0 && (
                 <>
                   <p className="friends-group stat-k">Requests · {incoming.length}</p>
@@ -190,7 +251,10 @@ export function FriendsPanel({ searchRef, collapsed, onToggle }: {
                   <p className="friends-group stat-k">Friends · {friends.length}</p>
                   <ul>
                     {friends.map(f => (
-                      <FriendRow key={f.playerId} f={f} onRemove={() => remove(f.playerId)} />
+                      <FriendRow key={f.playerId} f={f}
+                        canInvite={canInvite(f.playerId)}
+                        onInvite={() => social.invite(f.playerId)}
+                        onRemove={() => remove(f.playerId)} />
                     ))}
                   </ul>
                 </>

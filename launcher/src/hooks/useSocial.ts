@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  acceptFriend, addFriend, fetchFriendsState, removeFriend, removeRequest,
-  searchPlayers, type Friend, type FriendRequest, type SearchResult,
+  acceptFriend, addFriend, removeFriend, removeRequest, searchPlayers,
+  type Friend, type FriendRequest, type SearchResult,
 } from "../lib/friends";
+import {
+  acceptPartyInvite, cancelPartyInvite, declinePartyInvite, fetchSocialState,
+  invitePlayer, removePartyMember,
+  type PartyInvite, type PartyView,
+} from "../lib/social";
 
 /* How often to ask, in milliseconds.
 
@@ -13,21 +18,25 @@ import {
    between one client costing 720 requests an hour and 60.
 
    An unchanged answer is a 304 with no body, so most of these cost a request and
-   two indexed queries and nothing else. */
+   three indexed queries and nothing else. */
 const ACTIVE = 5_000;
 const IDLE = 60_000;
 
-export type Friends = ReturnType<typeof useFriends>;
+export type Social = ReturnType<typeof useSocial>;
 
-/* The friends list, pending requests, and searching for people to add.
+/* Friends, party and invites: one poll, one state, one panel that cannot show
+   two different moments at once.
 
-   Every action reloads the list afterwards rather than patching state by hand:
-   the server decides what a request became (asking back someone who already
-   asked you makes you friends immediately), so asking it is more honest than
-   guessing here. */
-export function useFriends() {
+   Every action reloads afterwards rather than patching state by hand: the server
+   decides what a request or an invite became (asking back someone who already
+   asked you makes you friends immediately; accepting an invite takes you out of
+   the party you were in), so asking it is more honest than guessing here. */
+export function useSocial() {
+  const [me, setMe] = useState(0);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [party, setParty] = useState<PartyView | null>(null);
+  const [invites, setInvites] = useState<PartyInvite[]>([]);
   const [signedOut, setSignedOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +62,7 @@ export function useFriends() {
     if (busy.current && !force) return;
     busy.current = true;
     try {
-      const state = await fetchFriendsState(force ? null : etag.current);
+      const state = await fetchSocialState(force ? null : etag.current);
 
       if (state === null) { setSignedOut(true); return; }
       setSignedOut(false);
@@ -62,8 +71,11 @@ export function useFriends() {
       if (state.unchanged) return;
 
       etag.current = state.etag ?? null;
+      setMe(state.you);
       setFriends(state.friends);
       setRequests(state.requests);
+      setParty(state.party);
+      setInvites(state.invites);
     } finally {
       busy.current = false;
     }
@@ -133,13 +145,26 @@ export function useFriends() {
     }
   }, [reload, query]);
 
+  /* Whether you lead is the server's answer, not an assumption: you can be in a
+     party somebody else made, and every button below is checked there anyway. */
+  const leads = party === null || party.leaderId === me;
+
   return {
-    friends, requests, signedOut, error,
+    me, friends, requests, party, invites, leads, signedOut, error,
     query, setQuery, results, searching,
+
     add: (id: number) => act(() => addFriend(id)),
     accept: (id: number) => act(() => acceptFriend(id)),
     cancel: (id: number) => act(() => removeRequest(id)),
     remove: (id: number) => act(() => removeFriend(id)),
+
+    invite: (id: number) => act(() => invitePlayer(id)),
+    acceptInvite: (partyId: number) => act(() => acceptPartyInvite(partyId)),
+    declineInvite: (partyId: number) => act(() => declinePartyInvite(partyId)),
+    cancelInvite: (id: number) => act(() =>
+      party ? cancelPartyInvite(party.id, id) : Promise.resolve()),
+    removeMember: (id: number) => act(() => removePartyMember(id)),
+
     reload,
   };
 }

@@ -26,17 +26,8 @@ export type Relationship = "none" | "requested" | "incoming" | "friends" | "self
 
 export type SearchResult = Omit<Friend, never> & { relationship: Relationship };
 
-/* One answer for the whole panel, and the shape the launcher polls.
-
-   `unchanged` is the server saying 304: the state is what you already have.
-   `etag` labels the state that came back and is handed to the next call so the
-   server can answer 304 again. */
-export type FriendsState =
-  | { unchanged: true }
-  | { unchanged?: false; etag?: string; friends: Friend[]; requests: FriendRequest[] };
-
-export const fetchFriendsState = (etag: string | null) =>
-  invoke<FriendsState | null>("friends_state", { etag });
+/* The list itself is not fetched here: friends, requests and party state are
+   drawn on one panel and arrive together from lib/social.ts. */
 
 export const searchPlayers = (query: string) => invoke<SearchResult[] | null>("search_players", { query });
 

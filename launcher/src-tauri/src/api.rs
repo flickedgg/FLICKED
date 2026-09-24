@@ -88,11 +88,11 @@ fn url(path: &str) -> Result<Url, String> {
 /* Ids come from the webview, so they are checked before going into a URL.
    Nothing here can reach another host (the base is fixed), but a negative or
    zero id is never valid and is better refused early than sent. */
-fn player_url(prefix: &str, player_id: i64, suffix: &str) -> Result<Url, String> {
-    if player_id <= 0 {
+fn id_url(prefix: &str, id: i64, suffix: &str) -> Result<Url, String> {
+    if id <= 0 {
         return Err("Unknown player.".into());
     }
-    url(&format!("{prefix}{player_id}{suffix}"))
+    url(&format!("{prefix}{id}{suffix}"))
 }
 
 /// The signed-in player's own match history.
@@ -101,8 +101,12 @@ pub async fn my_matches() -> Result<Option<Value>, String> {
     get("/api/matches").await
 }
 
-/* The friends panel's whole state, polled.
-   
+/* The side of the Play screen, whole, polled: friends, requests, your party and
+   the invites waiting for you.
+
+   One request rather than one per list, because they are drawn together and
+   fetching them at different instants is how a panel disagrees with itself.
+
    Takes the ETag from the last answer and hands it back to the server, which
    replies 304 with no body when nothing has changed. That is the usual case, so
    the usual poll costs a request and no parsing, no IPC payload and no re-render
@@ -113,13 +117,13 @@ pub async fn my_matches() -> Result<Option<Value>, String> {
    `{"unchanged": true}` is 304, and anything else is a new state carrying the
    ETag to send next time. */
 #[tauri::command]
-pub async fn friends_state(etag: Option<String>) -> Result<Option<Value>, String> {
+pub async fn social_state(etag: Option<String>) -> Result<Option<Value>, String> {
     let Some(token) = read_token() else {
         return Ok(None);
     };
 
     let mut request = reqwest::Client::new()
-        .get(url("/api/friends/state")?)
+        .get(url("/api/social/state")?)
         .bearer_auth(&token);
 
     // Only a value the server itself gave us is ever sent back.
@@ -167,23 +171,68 @@ pub async fn search_players(query: String) -> Result<Option<Value>, String> {
 
 #[tauri::command]
 pub async fn add_friend(player_id: i64) -> Result<Option<Value>, String> {
-    send(Method::POST, player_url("/api/friends/requests/", player_id, "")?).await
+    send(Method::POST, id_url("/api/friends/requests/", player_id, "")?).await
 }
 
 #[tauri::command]
 pub async fn accept_friend(player_id: i64) -> Result<Option<Value>, String> {
-    send(Method::POST, player_url("/api/friends/requests/", player_id, "/accept")?).await
+    send(Method::POST, id_url("/api/friends/requests/", player_id, "/accept")?).await
 }
 
 /// Declines a request sent to you, or cancels one you sent: the same row either way.
 #[tauri::command]
 pub async fn remove_friend_request(player_id: i64) -> Result<Option<Value>, String> {
-    send(Method::DELETE, player_url("/api/friends/requests/", player_id, "")?).await
+    send(Method::DELETE, id_url("/api/friends/requests/", player_id, "")?).await
 }
 
 #[tauri::command]
 pub async fn remove_friend(player_id: i64) -> Result<Option<Value>, String> {
-    send(Method::DELETE, player_url("/api/friends/", player_id, "")?).await
+    send(Method::DELETE, id_url("/api/friends/", player_id, "")?).await
+}
+
+/* Parties.
+
+   Nothing here decides anything: the backend checks that you lead the party,
+   that the person you are inviting is a friend, and that there is room, whatever
+   the launcher believes. These commands exist so the webview can ask without
+   ever holding the token. */
+
+/// Ask a friend to join your party, making one if you are not in one.
+#[tauri::command]
+pub async fn party_invite(player_id: i64) -> Result<Option<Value>, String> {
+    send(Method::POST, id_url("/api/party/invite/", player_id, "")?).await
+}
+
+#[tauri::command]
+pub async fn party_accept_invite(party_id: i64) -> Result<Option<Value>, String> {
+    send(Method::POST, id_url("/api/party/invites/", party_id, "/accept")?).await
+}
+
+/// Turn down an invite sent to you.
+#[tauri::command]
+pub async fn party_decline_invite(party_id: i64) -> Result<Option<Value>, String> {
+    send(Method::DELETE, id_url("/api/party/invites/", party_id, "")?).await
+}
+
+/// Take back an invite your party sent, which only its leader may do.
+#[tauri::command]
+pub async fn party_cancel_invite(party_id: i64, player_id: i64) -> Result<Option<Value>, String> {
+    if player_id <= 0 {
+        return Err("Unknown player.".into());
+    }
+
+    let mut target = id_url("/api/party/invites/", party_id, "")?;
+    target
+        .query_pairs_mut()
+        .append_pair("playerId", &player_id.to_string());
+
+    send(Method::DELETE, target).await
+}
+
+/// Leave the party, if it is you; remove somebody from it, if you lead.
+#[tauri::command]
+pub async fn party_remove_member(player_id: i64) -> Result<Option<Value>, String> {
+    send(Method::DELETE, id_url("/api/party/members/", player_id, "")?).await
 }
 
 /* Matchmaking.

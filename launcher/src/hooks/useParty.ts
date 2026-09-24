@@ -1,45 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FRIENDS, type Friend } from "../data/demo";
+import { useMemo } from "react";
+import type { Social } from "./useSocial";
+import type { PartySeat } from "../lib/social";
 
 export type Party = ReturnType<typeof useParty>;
 
-/* Party state. You are always the leader for now. Invites are simulated
-   (the friend accepts after a moment) until the backend sends party events. */
-export function useParty() {
-  const [members, setMembers] = useState<Friend[]>([]);   // excludes you
-  const [pending, setPending] = useState<Friend[]>([]);   // invited, not answered yet
-  const timers = useRef(new Map<string, number>());
+/* The party, as the Play screen reads it.
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+   There is no state here any more. The party lives in the database and arrives
+   with the friends list on one poll, so this only reshapes what is already
+   there: your own seat out of the list (the screen draws it separately), the
+   invites your party has out, and how many seats are spoken for.
 
-  const invite = useCallback((id: string) => {
-    const friend = FRIENDS.find(f => f.id === id);
-    if (!friend) return;
-    setPending(p => [...p, friend]);
-    timers.current.set(id, window.setTimeout(() => {
-      timers.current.delete(id);
-      setPending(p => p.filter(f => f.id !== id));
-      setMembers(m => [...m, friend]);
-    }, 1800 + Math.random() * 1500));
-  }, []);
+   Leaving and kicking are the same call, because they are the same row: the
+   server works out which one it is from who asked. */
+export function useParty(social: Social) {
+  const { me, party, leads } = social;
 
-  const cancelInvite = useCallback((id: string) => {
-    clearTimeout(timers.current.get(id));
-    timers.current.delete(id);
-    setPending(p => p.filter(f => f.id !== id));
-  }, []);
+  const members = useMemo<PartySeat[]>(
+    () => party?.members.filter(m => m.playerId !== me) ?? [],
+    [party, me]);
 
-  const kick = useCallback((id: string) => setMembers(m => m.filter(f => f.id !== id)), []);
+  const pending = party?.invited ?? [];
 
-  const disband = useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current.clear();
-    setMembers([]);
-    setPending([]);
-  }, []);
+  return {
+    members,
+    pending,
+    leads,
 
-  // you + members + seats held by pending invites
-  const taken = 1 + members.length + pending.length;
+    /// you, the members, and the seats held by invites nobody has answered yet
+    taken: 1 + members.length + pending.length,
 
-  return { members, pending, taken, invite, cancelInvite, kick, disband };
+    invite: social.invite,
+    cancelInvite: social.cancelInvite,
+    kick: social.removeMember,
+    leave: () => social.removeMember(me),
+  };
 }
