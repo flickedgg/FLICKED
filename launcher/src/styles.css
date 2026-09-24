@@ -153,14 +153,24 @@ img{ display:block; }
 
 .titlebar{
   grid-column:1 / -1;
+  position:relative;            /* the queue pill centres against this */
   display:flex; align-items:center; gap:16px;
   padding-left:16px; border-bottom:1px solid var(--line);
 }
 .brand{ display:flex; align-items:center; gap:9px; }
 .brand img{ width:20px; height:auto; }
 
+/* Centred on the window, not on what is left over.
+
+   As a flex item with margin-inline:auto it centred in the gap between the brand
+   and the window buttons, which are not the same width, so it sat left of centre
+   and would move again if either side changed. Taking it out of the flow and
+   centring it on the header itself pins it to the middle of the window whatever
+   sits either side of it. */
 .queue-pill{
-  display:inline-flex; align-items:center; gap:9px; height:24px; padding:0 4px 0 10px; margin-inline:auto;
+  position:absolute; left:50%; transform:translateX(-50%);
+  display:inline-flex; align-items:center; gap:9px; height:24px; padding:0 4px 0 10px;
+  white-space:nowrap;
   border-radius:99px; border:1px solid rgba(246,86,0,.35); background:rgba(246,86,0,.08);
   font-family:var(--ff-mono); font-size:11px; color:var(--foreground);
 }
