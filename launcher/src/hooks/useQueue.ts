@@ -110,7 +110,7 @@ export function useQueue() {
     votesFor: (name: string) => state?.votes?.[MAP_CODE[name] ?? name] ?? 0,
     votesCast: Object.values(state?.votes ?? {}).reduce((a, b) => a + b, 0),
 
-    /// "77.83.242.101:27015" once a server is holding the match
+    /// "host:port" of the server holding the match, once there is one
     connect: state?.connect ?? null,
 
     /// join again by hand, if Steam did not pick it up the first time

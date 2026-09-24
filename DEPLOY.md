@@ -1,11 +1,35 @@
 # Hosting FLICKED
 
-How to put FLICKED on a machine other people can reach, so a group of friends can
+How to build FLICKED and run it somewhere your friends can reach, so a group can
 queue against each other instead of one person testing alone.
 
-This walks through the setup FLICKED was built for: **one Windows VPS running both
-the CS2 server and the backend**. Everything here works the same on a bigger
-setup; the addresses just stop being the same machine.
+This walks through the setup FLICKED was built for: **one Windows VPS running the
+CS2 server, the backend and the dashboard together**. Everything works the same
+spread across several machines; the addresses just stop being the same one.
+
+> **Read [Security](#security) before you invite anyone.** The setup here runs
+> over plain HTTP, which is fine for testing among people you know and not fine
+> for anything else. What that costs you is written down plainly rather than left
+> for you to find out.
+
+---
+
+## What you need
+
+| | |
+|---|---|
+| A Windows VPS | the one already running your CS2 server is fine |
+| .NET 10 SDK | on your development machine only — the VPS needs nothing |
+| Node.js LTS | on both, if you want the dashboard |
+| A Steam Web API key | free, from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) |
+| Your SteamID64 | so you can reach the dashboard as an admin |
+
+---
+
+## The three addresses
+
+Nearly every deployment problem is one of these being wrong, and each fails
+quietly rather than loudly. Worth understanding before you start.
 
 ```
   a friend's PC                    your VPS                       Steam
@@ -17,110 +41,204 @@ setup; the addresses just stop being the same machine.
      └──── steam://connect ──────────────────────────────────►  CS2 server
 ```
 
-Three addresses have to be right, and they are the whole of what usually goes
-wrong:
+| Setting | Who reads it | What it must be | If it is wrong |
+|---|---|---|---|
+| `Steam:PublicUrl` | a friend's **browser**, signing in | your VPS address | sign-in sends them back to their own PC |
+| `Api:PublicUrl` | the **CS2 server**, fetching a match config | your VPS address | the server fetches nothing and stays on its old map, with no error anywhere |
+| `FLICKED_API` | the **launcher**, compiled in when built | your VPS address | the launcher looks for FLICKED on the player's own machine |
 
-| Setting | Who reads it | What it must be |
-|---|---|---|
-| `Steam:PublicUrl` | a friend's **browser**, during sign-in | the VPS address |
-| `Api:PublicUrl` | the **CS2 server**, fetching a match config | the VPS address |
-| `FLICKED_API` | the **launcher**, compiled in | the VPS address |
-
-A wrong one of these fails quietly rather than loudly. That is worth knowing in
-advance: a bad `Api:PublicUrl` means the server fetches nothing and sits on its
-old map, with no error anywhere.
+Replace `<vps-address>` below with the address your VPS answers on.
 
 ---
 
-## 1. Postgres
+## Part 1 — Build
+
+All three are built on your development machine. Nothing is compiled on the VPS.
+
+### The API
+
+```
+dotnet publish backend/Flicked.Api -c Release -r win-x64 --self-contained
+```
+
+Output: `backend/Flicked.Api/bin/Release/net10.0/win-x64/publish/`
+
+`--self-contained` bundles the .NET runtime, so the VPS needs no SDK installed.
+It is about 115 MB the first time. **Later updates are two files** — see
+[Upgrading](#upgrading).
+
+### The launcher
+
+The API address is compiled in, so a build made on your machine points at your
+machine unless you say otherwise:
+
+```
+set FLICKED_API=http://<vps-address>:5165
+cd launcher
+npm install
+npm run tauri build
+```
+
+Installers land in `launcher/src-tauri/target/release/bundle/` — an `.exe` (NSIS)
+and an `.msi`, the same app either way. Send your friends whichever you prefer.
+
+Leaving `FLICKED_API` unset builds against `http://localhost:5165`, which is what
+you want while developing.
+
+> **Check the build before handing it out.** One variable feeds both the Rust
+> side and the webview so they cannot disagree, but confirming costs nothing:
+>
+> ```
+> findstr /C:"<vps-address>" launcher\src-tauri\target\release\launcher.exe
+> ```
+
+Your friends will see **"Windows protected your PC"** when they run it. That is
+SmartScreen reacting to an unsigned installer, not to anything being wrong:
+*More info* → *Run anyway*. Signing needs a paid certificate.
+
+### The dashboard
+
+```
+cd dashboard
+npm install
+set NEXT_PUBLIC_API_URL=http://<vps-address>:5165
+npx next build
+```
+
+The build produces a standalone server. Assemble what the VPS needs:
+
+```
+.next/standalone/*   →  the server and its dependencies
+.next/static/*       →  into <deploy>/.next/static
+public/*             →  into <deploy>/public
+```
+
+That folder runs with Node alone — no `npm install` on the VPS.
+
+**The dashboard has to run on the VPS**, not on your PC. Its session cookie is
+`SameSite=Lax`, so a browser will not send it from `localhost:3000` to an API on
+another host: you would sign in successfully and then have every request
+rejected. Same host, different port is fine — cookies ignore ports.
+
+---
+
+## Part 2 — Deploy
+
+### 2.1 Postgres
 
 Docker Desktop on a Windows VPS usually cannot get the nested virtualization it
-needs for WSL2, so install Postgres natively:
+needs, so install Postgres natively with the **EnterpriseDB installer**. It runs
+as a service and starts with the machine.
 
-1. Download the **EnterpriseDB Postgres installer** and run it. It installs a
-   Windows service that starts with the machine.
-2. During setup, set a password for the `postgres` superuser.
-3. Create FLICKED's database and user (pgAdmin comes with the installer, or use
-   `psql`):
+Then, in **SQL Shell (psql)**:
 
 ```sql
 CREATE USER flicked WITH PASSWORD 'pick-a-real-password';
 CREATE DATABASE flicked OWNER flicked;
 ```
 
-You do not need to create any tables. The API applies its own migrations on
-startup (`Database:AutoMigrate`, on by default), so the first run builds the
-schema and seeds the map pool.
+Create no tables. The API applies its own migrations on startup, so the first run
+builds the schema and seeds the map pool.
 
----
+### 2.2 Copy the API across
 
-## 2. Configuration
+Put the published folder anywhere on the VPS — `C:\flicked\api` in these
+examples. Adjust the paths if you choose somewhere else.
 
-Nothing secret belongs in `appsettings.json` — it is committed. Set these as
-**system environment variables** on the VPS instead, where `__` stands for the
-`:` in a setting name:
+### 2.3 Configure it
 
+Create a file called `.env` **next to `Flicked.Api.exe`**. It is read on startup
+and belongs in no repository.
+
+```ini
+# The database you just created.
+ConnectionStrings:Flicked=Host=localhost;Port=5432;Database=flicked;Username=flicked;Password=<db-password>
+
+# This machine, as the outside world sees it. Never localhost: one of these is
+# read by a browser on someone else's PC, the other by the CS2 server.
+Steam:PublicUrl=http://<vps-address>:5165
+Api:PublicUrl=http://<vps-address>:5165
+
+# Where the dashboard runs. Needed for CORS and for the sign-in redirect.
+Dashboard:Url=http://<vps-address>:3000
+
+# Listen on every interface. The default is localhost only, which leaves the API
+# invisible from outside however the firewall is set.
+urls=http://0.0.0.0:5165
+
+STEAM_API_KEY=<your-steam-web-api-key>
+
+# Comma-separated SteamID64s allowed into the dashboard.
+FLICKED_ADMIN_STEAM_IDS=<your-steamid64>
+
+# Encryption keys for stored RCON passwords. Back this folder up.
+DataProtection:KeyPath=C:\flicked\keys
+
+# Optional, while testing: play with fewer people than a real match needs.
+# Matchmaking:CompetitivePlayers=2
 ```
-ConnectionStrings__Flicked = Host=localhost;Port=5432;Database=flicked;Username=flicked;Password=pick-a-real-password
-Steam__PublicUrl           = http://77.83.242.101:5165
-Api__PublicUrl             = http://77.83.242.101:5165
-Steam__ApiKey              = your Steam Web API key
-Dashboard__Url             = http://77.83.242.101:3000
-DataProtection__KeyPath    = C:\flicked\keys
-ASPNETCORE_URLS            = http://0.0.0.0:5165
-```
 
-Substitute your own VPS address for `77.83.242.101` throughout.
+#### About `DataProtection:KeyPath`
 
-`ASPNETCORE_URLS` matters: the default binds to localhost only, and the API would
-be invisible from outside no matter what the firewall says.
-
-### About `DataProtection__KeyPath`
-
-This folder holds the keys that encrypt stored RCON passwords. Two consequences:
+This folder holds the keys that encrypt stored RCON passwords.
 
 - **Back it up.** Lose it and every stored RCON password becomes unreadable, and
   every server has to be added again.
-- **It does not travel.** Keys are tied to the machine that made them, so RCON
-  passwords encrypted on your PC cannot be decrypted on the VPS. If you copy your
-  development database over, re-enter each server's RCON password in the
-  dashboard afterwards. The symptom otherwise is
-  `Server X has an unreadable RCON password; set it again` in the log.
+- **It does not travel between machines.** If you copy a development database to
+  the VPS, re-enter each server's RCON password in the dashboard afterwards. The
+  symptom otherwise is `Server X has an unreadable RCON password; set it again`.
 
----
+### 2.4 Open the ports
 
-## 3. Publish and run the API
-
-On your development machine:
-
-```
-dotnet publish backend/Flicked.Api -c Release -r win-x64 --self-contained
-```
-
-`--self-contained` bundles the .NET runtime, so the VPS needs no SDK installed.
-Copy `bin/Release/net10.0/win-x64/publish/` to the VPS, say to `C:\flicked\api`,
-and run `Flicked.Api.exe`.
-
-Open the port, in an **administrator** PowerShell on the VPS:
+In an **administrator PowerShell** on the VPS:
 
 ```powershell
 New-NetFirewallRule -DisplayName "FLICKED API" -Direction Inbound -Protocol TCP -LocalPort 5165 -Action Allow
+New-NetFirewallRule -DisplayName "FLICKED Dashboard" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
 ```
 
-Some providers also have their own firewall in a web panel, separate from
-Windows' — check there if the port still looks closed.
+Many providers have a second firewall in their web panel. If a port still looks
+closed, check there.
 
-Check it from your own PC, not from the VPS (a service can answer itself while
-being unreachable from outside):
+### 2.5 Start the API
+
+Run `Flicked.Api.exe`. The first start applies the migrations; watch that it gets
+through them without an exception.
+
+Test it **from your own PC**, not from the VPS — a service can answer itself
+while being unreachable from outside:
 
 ```
-curl http://77.83.242.101:5165/api/news
+curl http://<vps-address>:5165/api/news
 ```
+
+### 2.6 Start the dashboard
+
+```powershell
+cd C:\flicked\dashboard
+$env:PORT=3000; $env:HOSTNAME="0.0.0.0"; node server.js
+```
+
+`HOSTNAME=0.0.0.0` matters for the same reason `urls` did — Next binds to
+localhost otherwise.
+
+### 2.7 Add your CS2 server
+
+Open `http://<vps-address>:3000`, sign in with Steam, and add the server with its
+host, port and RCON password. FLICKED handles the rest:
+
+- it reloads MatchZy before each match, clearing the flag that otherwise makes a
+  server refuse every match after its first;
+- it sends the config URL and event settings over RCON, so `server.cfg` needs no
+  FLICKED-specific lines.
+
+A server that answers the pool's RCON ping shows as **Idle** and can host
+matches. One that does not is **Offline** and is skipped until it answers.
 
 ### Keeping it running
 
-`Flicked.Api.exe` in a console window dies when you log out of the VPS. To keep
-it up, install [NSSM](https://nssm.cc) and register it as a service:
+A console window dies when you log out of the VPS. Install [NSSM](https://nssm.cc)
+and register it as a service:
 
 ```
 nssm install FlickedApi C:\flicked\api\Flicked.Api.exe
@@ -128,63 +246,117 @@ nssm set FlickedApi AppDirectory C:\flicked\api
 nssm start FlickedApi
 ```
 
-It then starts with the machine and restarts if it crashes.
-
 ---
 
-## 4. Build the launcher for your friends
+## Upgrading
 
-The API address is compiled into the launcher, so a build made on your machine
-points at your machine. Set the variable before building:
+After the first deployment you rarely need the whole 115 MB again. Unless the
+dependencies changed, a new backend build is **two files**:
 
+1. `dotnet publish` as above, on your machine
+2. stop the API on the VPS
+3. copy `Flicked.Api.dll` and `Flicked.Api.pdb` over the old ones
+4. start it — any new migrations apply on startup
+
+**Back up the database first when an upgrade migrates data.** From PowerShell —
+not psql, since `pg_dump` is a program rather than a psql command:
+
+```powershell
+$pg = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\pg_dump.exe" | Select-Object -First 1
+& $pg.FullName -U postgres -d flicked -f C:\backup.sql
 ```
-set FLICKED_API=http://77.83.242.101:5165
-cd launcher
-npm run tauri build
-```
 
-The installer lands in `launcher/src-tauri/target/release/bundle/`. Send that to
-your friends. Leaving `FLICKED_API` unset keeps the old behaviour — a build
-pointing at `http://localhost:5165` — which is what you want while developing.
-
-Each friend signs in through Steam in their own browser; the sign-in hands the
-token back to their own launcher on `127.0.0.1`, so nothing about it depends on
-where they are.
+**Update the API before handing out a launcher built against it.** The two talk
+over endpoints that change together, so a launcher from one side of an update and
+an API from the other will not agree.
 
 ---
 
-## 5. Add the CS2 server
+## Security
 
-Open the dashboard, sign in as an admin, and add the server with its host, port
-and RCON password. FLICKED does the rest of the setup itself:
+FLICKED is a hobby project you host yourself. This section is what that honestly
+means, so you can decide what you are comfortable with.
 
-- it reloads MatchZy before each match, which clears the flag that otherwise
-  makes a server refuse every match after its first;
-- it passes the config URL and the event-reporting settings over RCON, so
-  `server.cfg` needs no FLICKED-specific lines.
+### This setup runs over plain HTTP
 
-The pool pings each server over RCON; a server that answers shows as **Idle** and
-is available to matches. One that does not is marked **Offline** and skipped
-until it answers again.
+Everything above uses `http://`, and **that is not safe for anything beyond a
+test among people you know**. It is written this way deliberately: it gets a
+development setup working without a domain or certificates. It is not production
+ready and should not be treated as though it were.
+
+With no TLS:
+
+- **Session tokens cross the internet in the clear.** Anyone positioned between a
+  player and your VPS — the same café Wi-Fi, a compromised router, an ISP — can
+  read a token and act as that player until it expires.
+- **Dashboard cookies cross in the clear too**, and yours is an admin session.
+  Whoever captures it can add, edit and remove servers.
+- **RCON passwords are typed into an HTTP page.** They are encrypted once they
+  reach the database, but the form carrying them is not protected in transit.
+- **Nothing proves you are talking to your own server.** Without a certificate,
+  neither a launcher nor a browser can tell your API from something answering in
+  its place.
+
+**Before anyone outside your circle uses this**, put a domain in front with
+[Caddy](https://caddyserver.com), which obtains a certificate automatically. The
+three addresses become `https://` and the launcher needs rebuilding. It is about
+an hour, and it removes every point above.
+
+### What FLICKED does protect
+
+So you know where the line falls:
+
+- **Session tokens are stored hashed.** The database holds a SHA-256 of a token
+  rather than the token, so a database dump does not hand over live sessions.
+- **RCON passwords are encrypted at rest**, with the keys kept outside the
+  database in `DataProtection:KeyPath`. A stolen database alone does not yield
+  them.
+- **FLICKED never sees a Steam password.** Sign-in is Steam's own OpenID flow:
+  you authenticate with Steam, and FLICKED is told who you are.
+- **Admin actions are checked on the server** against `FLICKED_ADMIN_STEAM_IDS`.
+  Hidden buttons are a courtesy to the user, not a control.
+
+### What must never be committed
+
+`.env` is in `.gitignore` and belongs there. If one of these reaches a commit,
+treat it as public from the moment it is pushed — rewriting history does not
+recall clones, forks, or anyone who already fetched:
+
+| Leaked | What to do |
+|---|---|
+| `STEAM_API_KEY` | revoke and regenerate it at Steam |
+| Database password | change it in Postgres and in `.env` |
+| RCON passwords | change them on each CS2 server, then re-enter in the dashboard |
+| `DataProtection` keys | rotate the folder, then re-enter every RCON password |
+
+A public repository also publishes things that are not secrets but do describe
+your setup: addresses, open ports, which services run where. None of that is a
+credential, and a port scan finds most of it anyway — but a deployment guide
+written around a live host collects it in one convenient place, which is why this
+one uses `<vps-address>`.
+
+### Your server address is not a secret
+
+Worth saying plainly, because it surprises people: a CS2 server's address is
+published to every player who connects, appears in their console, and is compiled
+into the launcher you hand out. It cannot be kept private while people play on
+it. What matters is that the credentials above stay out of the repository.
 
 ---
 
-## Checklist before inviting anyone
+## When something does not work
 
-- [ ] `curl http://<vps>:5165/api/news` returns JSON **from another machine**
-- [ ] The dashboard shows your CS2 server as **Idle**
-- [ ] A friend's launcher signs in with Steam and shows their real avatar
-- [ ] A match forms, the server loads **the map that won the vote**, and everyone
-      is connected by Steam without typing an address
+Every one of these has happened during a real setup.
 
-## Known limits of this setup
-
-**It is http, not https.** Sign-in tokens and session cookies cross the internet
-in the clear, and anyone on the same network as one of your friends can read
-them. That is an acceptable trade for a test among people you know, and not
-acceptable for a public service. Putting [Caddy](https://caddyserver.com) in
-front with a real domain gets a certificate automatically; the three addresses
-above then become `https://` and the launcher needs rebuilding.
-
-**CS2 and the backend share a machine.** They compete for CPU, and a busy match
-can slow both. It is the cheapest way to try this, not the way to run it.
+| Symptom | Cause |
+|---|---|
+| API unreachable from outside, firewall looks open | `urls=http://0.0.0.0:5165` missing — it bound to localhost |
+| Server never loads the voted map, its console shows nothing | `Api:PublicUrl` is localhost or unreachable, so the server fetched its config from itself |
+| Sign-in sends a friend back to their own PC | `Steam:PublicUrl` is localhost |
+| News and leaderboard empty in the launcher, everything else fine | the launcher was built without `FLICKED_API` |
+| Dashboard signs in, then every request fails | the dashboard is not on the same host as the API (`SameSite=Lax`) |
+| `Server X has an unreadable RCON password` | the database moved between machines without its `DataProtection` keys |
+| Match timers start part-way through, or sit at zero | the VPS clock or the player's is wrong; sync both |
+| `invalid command \...` | you are in psql and typed a program name; programs belong in PowerShell |
+| `The ampersand (&) character is not allowed` | two PowerShell commands on one line — separate them with `;` |
+| `-U is not recognized` after a quoted path | PowerShell needs `& ` in front of a quoted path to run it |
