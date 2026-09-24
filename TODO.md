@@ -85,7 +85,7 @@ twelve-second error is most of the window.
 **Done when:** two launchers on different machines show the same countdown to
 within a second, and a phase always begins at 0.
 
-### 4. Friend requests do not appear until the view is remounted - [ ]
+### 4. Friend requests do not appear until the view is remounted - [+]
 
 **Reported as:** an incoming request only shows after navigating away and back.
 

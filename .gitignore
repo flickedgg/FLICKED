@@ -1,2 +1,4 @@
 # Ignore environment files
 **/.env
+# Claude Code agent worktrees
+.claude/worktrees/
