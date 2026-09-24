@@ -13,6 +13,10 @@ public class FlickedDbContext : DbContext
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
 
+    public DbSet<Party> Parties => Set<Party>();
+    public DbSet<PartyMember> PartyMembers => Set<PartyMember>();
+    public DbSet<PartyInvite> PartyInvites => Set<PartyInvite>();
+
     public DbSet<GameServer> Servers => Set<GameServer>();
     public DbSet<QueueEntry> Queue => Set<QueueEntry>();
 
@@ -91,6 +95,57 @@ public class FlickedDbContext : DbContext
             friendship.HasIndex(f => new { f.RequesterId, f.AddresseeId }).IsUnique();
             friendship.HasIndex(f => f.AddresseeId);   // "requests sent to me"
             friendship.Property(f => f.Status).HasConversion<string>().HasMaxLength(16);
+        });
+
+        modelBuilder.Entity<Party>(party =>
+        {
+            /* A party belongs to its leader: if their account goes, so does the
+               party, and its members are freed to make or join another. */
+            party.HasOne(p => p.Leader)
+                .WithMany()
+                .HasForeignKey(p => p.LeaderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PartyMember>(member =>
+        {
+            /* The index the whole design leans on: one party per player, decided
+               by the database rather than by a check the API makes just before
+               inserting. See PartyMember for what it prevents. */
+            member.HasIndex(m => m.PlayerId).IsUnique();
+
+            member.HasOne(m => m.Party)
+                .WithMany(p => p.Members)
+                .HasForeignKey(m => m.PartyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            member.HasOne(m => m.Player)
+                .WithMany()
+                .HasForeignKey(m => m.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PartyInvite>(invite =>
+        {
+            // inviting somebody twice refreshes one row rather than making two
+            invite.HasIndex(i => new { i.PartyId, i.ToPlayerId }).IsUnique();
+            invite.HasIndex(i => i.ToPlayerId);   // "invites waiting for me", asked on every poll
+            invite.HasIndex(i => i.ExpiresAt);    // how the janitor sweeps them
+
+            invite.HasOne(i => i.Party)
+                .WithMany()
+                .HasForeignKey(i => i.PartyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            invite.HasOne(i => i.ToPlayer)
+                .WithMany()
+                .HasForeignKey(i => i.ToPlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            invite.HasOne(i => i.FromPlayer)
+                .WithMany()
+                .HasForeignKey(i => i.FromPlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<QueueEntry>(entry =>
