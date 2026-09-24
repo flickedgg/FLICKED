@@ -27,7 +27,7 @@ export default function Leaderboard() {
           <span role="columnheader">#</span>
           <span role="columnheader">Player</span>
           <span role="columnheader">Rating</span>
-          <span role="columnheader">Wins</span>
+          <span role="columnheader">W–L</span>
           <span role="columnheader">Win rate</span>
         </div>
         {rows.map(p => (
@@ -39,9 +39,20 @@ export default function Leaderboard() {
             <span role="cell" className="mono rank">{String(p.rank).padStart(2, "0")}</span>
             <span role="cell" className="who">
               {p.name}{p.playerId === account?.id && <> <small className="tag">you</small></>}
+              {/* a rating built from two matches next to one built from three
+                  hundred is worth an asterisk */}
+              {p.provisional && <small className="tag">new</small>}
             </span>
-            <span role="cell" className="mono">{p.rating.toLocaleString()}</span>
-            <span role="cell" className="mono">{p.wins}</span>
+            <span role="cell" className="mono lb-rating">
+              {p.rating.toLocaleString()}
+              {/* what their last match did to it: standing is only half the story */}
+              {p.delta !== 0 && (
+                <small className={`lb-delta ${p.delta > 0 ? "is-up" : "is-down"}`}>
+                  {p.delta > 0 ? "+" : "−"}{Math.abs(p.delta)}
+                </small>
+              )}
+            </span>
+            <span role="cell" className="mono">{p.wins}–{p.losses}</span>
             <span role="cell" className="mono">{p.winRate}%</span>
           </div>
         ))}
@@ -51,8 +62,8 @@ export default function Leaderboard() {
           <div className="tr is-you" role="row">
             <span role="cell" className="mono rank">—</span>
             <span role="cell" className="who">{account.name} <small className="tag">you</small></span>
-            <span role="cell" className="mono">{account.rating.toLocaleString()}</span>
-            <span role="cell" className="mono">0</span>
+            <span role="cell" className="mono lb-rating">{account.rating.toLocaleString()}</span>
+            <span role="cell" className="mono">0–0</span>
             <span role="cell" className="mono">0%</span>
           </div>
         )}
