@@ -90,7 +90,7 @@ Every payload has an `event` field, and every match-scoped one has `matchid`
 | `series_start` | match config loaded | `team1`, `team2`, `num_maps` |
 | `going_live` | knife done, match starts | `map_number` |
 | `round_end` | every round | `map_number`, `round_number`, `round_time`, `reason`, `winner`, `team1`, `team2` |
-| `map_result` | map finished | `map_number`, `winner`, `team1`, `team2` |
+| `map_result` | map finished | `map_number`, `winner`, `team1`, `team2`. **`players` is always empty** - see below |
 | `series_end` | match over | `winner`, `team1_series_score`, `team2_series_score`, `time_until_restore`. **No per-player stats and no map score**: those are only in `map_result` |
 | `map_picked` / `map_vetoed` / `side_picked` | veto, if used | `team`, `map_name`, `map_number`, `side` |
 | `player_disconnect` | a player leaves | `player` |
@@ -121,6 +121,29 @@ player has `steamid`, `name` and a `stats` object containing `kills`, `deaths`,
 `assists`, `damage`, `headshot_kills`, `rounds_played`, `bomb_plants`,
 `bomb_defuses`, `utility_damage`, `enemies_flashed`, multi-kills (`1k`…`5k`),
 clutches (`1v1`…`1v4`) and more.
+
+### map_result sends no player stats
+
+Observed on our own server, 24 September 2026, at the end of a real match:
+
+```json
+"team1":{"series_score":1,"score":13,"score_ct":0,"score_t":0,"players":[],"name":"Team A"}
+```
+
+The players array is empty in `map_result`, although the documentation says it
+carries every player's stats, and MatchZy writes those same figures to
+`MatchZy_Stats/<matchid>/match_data_map0_<matchid>.csv` in the same breath. It is
+a plugin bug: shobhit-pathak/MatchZy#405, which also reports that `round_end`
+populates `players` correctly while its advanced fields (KAST, bomb plants, multi
+kills) come through as zero.
+
+**So FLICKED takes player stats from `round_end`, not `map_result`.** The figures
+are cumulative, so the last round's numbers are the match totals, and each round
+overwrites the same row rather than adding to it. `map_result` still applies
+stats when it has any, so a fixed plugin needs no change here.
+
+Note also that `score_ct` and `score_t` are `0` even though `score` is right.
+Only `score` is trustworthy.
 
 **Everything FLICKED shows already maps onto this**: K/D from `kills` and
 `deaths`, ADR from `damage ÷ rounds_played`, the score from `score`.

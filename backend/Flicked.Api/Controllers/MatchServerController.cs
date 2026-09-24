@@ -211,8 +211,26 @@ public class MatchServerController(
                 log.LogInformation("Match {MatchId} is over; {Server} released", matchId, server?.Name ?? "no server");
                 break;
 
+            /* Where the player stats actually come from.
+
+               map_result is documented to carry every player's stats and sends
+               "players": [] instead - a MatchZy bug, shobhit-pathak/MatchZy#405,
+               confirmed against our own server's payload. round_end carries the
+               same figures and they are cumulative, so applying them every round
+               leaves the final round's numbers standing as the match total.
+
+               Nothing accumulates here: each round overwrites the same row with
+               the plugin's running totals, so a round arriving twice, out of
+               order, or not at all costs at most the last round's damage. */
+            case "round_end":
+                if (match.Status != MatchStatus.Finished)
+                {
+                    await ApplyPlayerStatsAsync(match, body, ct);
+                }
+                break;
+
             default:
-                /* round_end, series_start, player_disconnect and the rest: accepted
+                /* series_start, player_disconnect and the rest: accepted
                    and not stored yet. Logged at information rather than debug so
                    that "is the server reporting at all?" is answerable from the
                    ordinary log, which is the first question whenever this breaks. */
@@ -228,6 +246,17 @@ public class MatchServerController(
         match.ScoreA = body.Team1?.Score ?? 0;
         match.ScoreB = body.Team2?.Score ?? 0;
         match.Status = MatchStatus.Finished;
+
+        /* Applied here too, for the day MatchZy#405 is fixed and map_result
+           arrives with players in it. Until then this is a no-op over an empty
+           list and the figures already saved by round_end stand. */
+        await ApplyPlayerStatsAsync(match, body, ct);
+    }
+
+    /// Writes each reported player's figures onto their row in this match.
+    private async Task ApplyPlayerStatsAsync(Match match, MatchZyEvent body, CancellationToken ct)
+    {
+        if ((body.Team1?.Players ?? []).Count == 0 && (body.Team2?.Players ?? []).Count == 0) return;
 
         var rows = await db.MatchPlayers.Where(mp => mp.MatchId == match.Id).ToListAsync(ct);
 
