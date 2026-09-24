@@ -224,7 +224,7 @@ public class AuthController(
         var created = new Player(
             id: 0,                                          
             name: profile?.PersonaName ?? $"Player {steamId[^4..]}",
-            rating: 1000,
+            rating: Rating.Start,
             wins: 0,
             losses: 0,
             steamId: steamId,

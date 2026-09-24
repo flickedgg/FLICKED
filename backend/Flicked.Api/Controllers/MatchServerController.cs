@@ -23,6 +23,7 @@ public class MatchServerController(
     FlickedDbContext db,
     ServerAuth auth,
     ServerPool pool,
+    MatchResults results,
     IConfiguration config,
     ILogger<MatchServerController> log) : ControllerBase
 {
@@ -159,9 +160,10 @@ public class MatchServerController(
             log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which it no longer holds",
                 server!.Name, body.Event, matchId);
 
-            if (body.Event is "series_end" or "map_result" && match.Status != MatchStatus.Finished)
+            if (body.Event is "series_end" or "map_result"
+                && match.Status != MatchStatus.Finished
+                && await SaveResultAsync(match, body, ct))
             {
-                await SaveResultAsync(match, body, ct);
                 log.LogInformation("Match {MatchId} finished {A}-{B} (late report)", matchId, match.ScoreA, match.ScoreB);
             }
             return Ok();
@@ -190,21 +192,19 @@ public class MatchServerController(
                does not retry, so a lost map_result must not mean a match that never
                finishes. */
             case "map_result":
-                if (match.Status != MatchStatus.Finished)
+                if (match.Status != MatchStatus.Finished && await SaveResultAsync(match, body, ct))
                 {
-                    await SaveResultAsync(match, body, ct);
                     log.LogInformation("Match {MatchId} finished {A}-{B}", matchId, match.ScoreA, match.ScoreB);
                 }
                 break;
 
             case "series_end":
-                if (match.Status != MatchStatus.Finished)
+                /* SaveResultAsync answers true only for the call that actually
+                   closed the match, so reaching the warning means no map_result
+                   ever did. The scores saved are then the series ones, which with
+                   one map per match is 1-0. */
+                if (match.Status != MatchStatus.Finished && await SaveResultAsync(match, body, ct))
                 {
-                    // no per-player stats here; the scores are the series ones
-                    match.ScoreA = body.Team1SeriesScore ?? match.ScoreA;
-                    match.ScoreB = body.Team2SeriesScore ?? match.ScoreB;
-                    match.Status = MatchStatus.Finished;
-                    await db.SaveChangesAsync(ct);
                     log.LogWarning("Match {MatchId} ended without a map_result; saved the series score only", matchId);
                 }
                 if (server is not null) await pool.ReleaseAsync(server.Id, ct);
@@ -241,16 +241,42 @@ public class MatchServerController(
         return Ok();
     }
 
-    private async Task SaveResultAsync(Match match, MatchZyEvent body, CancellationToken ct)
-    {
-        match.ScoreA = body.Team1?.Score ?? 0;
-        match.ScoreB = body.Team2?.Score ?? 0;
-        match.Status = MatchStatus.Finished;
+    /* Close the match out. True only for the call that actually closed it.
 
-        /* Applied here too, for the day MatchZy#405 is fixed and map_result
-           arrives with players in it. Until then this is a no-op over an empty
-           list and the figures already saved by round_end stand. */
+       The status check at the call sites above saves a pointless transaction on a
+       repeat; it is not what makes this safe. MatchResults.FinishAsync is, and it
+       is the only thing that is: the match's transition to Finished is claimed in
+       one conditional statement, and the ratings are written inside the same
+       transaction. A second series_end finds nothing left to claim. */
+    private async Task<bool> SaveResultAsync(Match match, MatchZyEvent body, CancellationToken ct)
+    {
+        /* Stats before the result, because rating reads them: the performance
+           term is worked out from the kills, deaths and ADR standing on these
+           rows at the moment the match closes.
+
+           Applied here for the day MatchZy#405 is fixed and map_result arrives
+           with players in it. Until then this is a no-op over an empty list and
+           the figures already saved by round_end stand. */
         await ApplyPlayerStatsAsync(match, body, ct);
+
+        var (scoreA, scoreB) = ScoreFrom(match, body);
+        return await results.FinishAsync(match, scoreA, scoreB, ct);
+    }
+
+    /* The score to save, whichever event brought it.
+
+       map_result carries the round score, which is the one worth having.
+       series_end carries neither team nor round score, only the series one, so it
+       is read only when the alternative is recording no result at all. */
+    private static (int A, int B) ScoreFrom(Match match, MatchZyEvent body)
+    {
+        if (body.Team1 is not null || body.Team2 is not null)
+            return (body.Team1?.Score ?? 0, body.Team2?.Score ?? 0);
+
+        if (body.Team1SeriesScore is not null || body.Team2SeriesScore is not null)
+            return (body.Team1SeriesScore ?? 0, body.Team2SeriesScore ?? 0);
+
+        return (match.ScoreA, match.ScoreB);
     }
 
     /// Writes each reported player's figures onto their row in this match.
@@ -290,7 +316,8 @@ public class MatchServerController(
                 row.Kills = reported.Stats?.Kills ?? 0;
                 row.Deaths = reported.Stats?.Deaths ?? 0;
                 row.Adr = reported.Stats?.Adr ?? 0;
-                // RatingDelta stays 0 until there is a rating system to compute it
+                // RatingDelta is not touched here: it is written once, by
+                // MatchResults, when the match is closed.
             }
         }
 
