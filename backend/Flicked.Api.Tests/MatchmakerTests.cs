@@ -270,6 +270,42 @@ public class MatchmakerTests(PoolFixture fixture)
         Assert.Equal(9, await check.Queue.CountAsync());          // the silent one is not back
     }
 
+    /* The same forgiveness, applied to parties rather than people.
+
+       A party whose members all accepted keeps its place, whole. A party where
+       one member never answered is dropped altogether: requeueing the rest
+       without them would break up the party they queued as, which is worse for
+       them than losing a minute. */
+    [Fact]
+    public async Task Requeueing_keeps_a_party_whole_and_drops_one_that_did_not_all_accept()
+    {
+        await fixture.ResetMatchmakingAsync();
+        var willing = await fixture.AddPlayersAsync(2, rating: 1500);
+        var distracted = await fixture.AddPlayersAsync(2, rating: 1500);
+        var solos = await fixture.AddPlayersAsync(6, rating: 1500);
+
+        var kept = await fixture.QueuePartyAsync(willing);
+        var dropped = await fixture.QueuePartyAsync(distracted);
+        await fixture.QueueAsync(solos);
+
+        await using var db = fixture.NewContext();
+        var match = (await NewMatchmaker(db).FormMatchesAsync())[0];
+
+        // everyone but one member of the second party answers
+        await fixture.AcceptAsync(match.Id, [.. willing, .. solos, distracted[0]]);
+        await fixture.AgeMatchAsync(match.Id, Matchmaker.AcceptWindow + TimeSpan.FromSeconds(1));
+
+        await using var db2 = fixture.NewContext();
+        await NewMatchmaker(db2).AdvancePhasesAsync();
+
+        await using var check = fixture.NewContext();
+        var waiting = await check.Queue.Select(q => q.PartyId).ToListAsync();
+
+        Assert.Contains(kept.Id, waiting);
+        Assert.DoesNotContain(dropped.Id, waiting);
+        Assert.Equal(7, waiting.Count);            // the party of two, and six on their own
+    }
+
     [Fact]
     public async Task The_most_voted_map_is_played()
     {

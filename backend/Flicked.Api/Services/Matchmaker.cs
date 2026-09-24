@@ -316,10 +316,17 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
         return leaders[Random.Shared.Next(leaders.Count)];
     }
 
-    /* Back to the queue, by party, for everyone who accepted.
+    /* Back to the queue, by party, for the parties who all accepted.
 
-       Three indexed queries rather than one per player: which parties these
-       players are in now, and which of those are somehow already waiting. */
+       A party goes back only if every one of its members answered. If one did
+       not, the party is dropped from the queue entirely rather than requeued
+       without them: they are a unit, their teammate answered for a match they
+       were going to play together, and putting the rest back in alone is the
+       opposite of what they queued for.
+
+       Four indexed queries however many players were in the match, rather than
+       one per player: which parties they are in, who else is in those, and which
+       are somehow already waiting. */
     private async Task RequeueAsync(Match match, CancellationToken ct)
     {
         var mode = ServerType.Competitive;   // one mode for now; the match knows no better
@@ -331,18 +338,33 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
             .ToList();
         if (accepted.Count == 0) return;
 
+        /* Their party as it stands now rather than as it was when the match
+           formed: somebody who left in between is not a member this party is
+           waiting to hear from. */
         var parties = await db.PartyMembers
             .Where(m => accepted.Contains(m.PlayerId))
             .Select(m => m.PartyId)
             .Distinct()
             .ToListAsync(ct);
 
+        var members = await db.PartyMembers
+            .Where(m => parties.Contains(m.PartyId))
+            .Select(m => new { m.PartyId, m.PlayerId })
+            .ToListAsync(ct);
+
+        var willing = accepted.ToHashSet();
+        var whole = members
+            .GroupBy(m => m.PartyId)
+            .Where(party => party.All(m => willing.Contains(m.PlayerId)))
+            .Select(party => party.Key)
+            .ToList();
+
         var queued = await db.Queue
-            .Where(q => parties.Contains(q.PartyId))
+            .Where(q => whole.Contains(q.PartyId))
             .Select(q => q.PartyId)
             .ToListAsync(ct);
 
-        foreach (var partyId in parties.Except(queued))
+        foreach (var partyId in whole.Except(queued))
             db.Queue.Add(new QueueEntry { PartyId = partyId, Mode = mode, JoinedAt = joined });
     }
 

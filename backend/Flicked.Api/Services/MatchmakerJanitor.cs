@@ -33,6 +33,11 @@ public class MatchmakerJanitor(IServiceScopeFactory scopes, ILogger<MatchmakerJa
                 await matchmaker.FormMatchesAsync(stopping);
                 await matchmaker.AdvancePhasesAsync(stopping);
 
+                /* Invites end on a clock like the accept and vote windows do,
+                   and this loop is already running on one with a scope open. One
+                   indexed delete, almost always of nothing. */
+                await services.GetRequiredService<Parties>().SweepExpiredInvitesAsync(stopping);
+
                 await StartReadyMatchesAsync(services, stopping);
             }
             catch (OperationCanceledException) when (stopping.IsCancellationRequested)

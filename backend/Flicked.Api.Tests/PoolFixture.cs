@@ -175,6 +175,20 @@ public class PoolFixture : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
+    /// Marks exactly these players as having accepted, and nobody else.
+    public async Task AcceptAsync(int matchId, IEnumerable<Player> players)
+    {
+        var ids = players.Select(p => p.Id).ToList();
+
+        await using var db = NewContext();
+        var rows = await db.MatchPlayers
+            .Where(mp => mp.MatchId == matchId && ids.Contains(mp.PlayerId))
+            .ToListAsync();
+
+        foreach (var row in rows) row.AcceptedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     /// Pushes a match's clock back, so a window that lasts 20 seconds can be
     /// tested without waiting 20 seconds.
     public async Task AgeMatchAsync(int matchId, TimeSpan by)
