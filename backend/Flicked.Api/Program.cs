@@ -72,7 +72,24 @@ builder.Services.AddCors(options =>
         .AllowCredentials());
 });
 
+/* Match sizes, so a smaller group can try the whole thing (see Matchmaker). */
+Matchmaker.CompetitivePlayers = builder.Configuration.GetValue("Matchmaking:CompetitivePlayers", 10);
+Matchmaker.WingmanPlayers = builder.Configuration.GetValue("Matchmaking:WingmanPlayers", 4);
+
 var app = builder.Build();
+
+/* Bring the database up to date on startup.
+
+   FLICKED is meant to be self-hosted, and asking someone to install the EF
+   tooling and run migrations by hand before their friends can play is a poor
+   welcome. There is one instance of this API, so there is no second copy to
+   race with. Set Database:AutoMigrate to false to take this over yourself. */
+if (builder.Configuration.GetValue("Database:AutoMigrate", true))
+{
+    using var migrations = app.Services.CreateScope();
+    await migrations.ServiceProvider.GetRequiredService<FlickedDbContext>()
+        .Database.MigrateAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

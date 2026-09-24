@@ -20,7 +20,23 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
     public static readonly string[] MapPool =
         ["de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_dust2", "de_train"];
 
-    public static int PlayersFor(ServerType mode) => mode == ServerType.Wingman ? 4 : 10;
+    /* How many players a match needs.
+
+       Ten and four are the real answers. Both can be lowered to try the whole
+       chain with fewer people than a real match needs, which is otherwise
+       impossible: nothing downstream cares how many there are, because the
+       teams are drafted from whoever is in the match and the server is told
+       players_per_team from that same roster.
+
+           Matchmaking:CompetitivePlayers=2
+
+       Set once at startup rather than read per pass, so the queue, the count the
+       launcher shows, and the draft cannot disagree halfway through a match. */
+    public static int CompetitivePlayers { get; set; } = 10;
+    public static int WingmanPlayers { get; set; } = 4;
+
+    public static int PlayersFor(ServerType mode) =>
+        mode == ServerType.Wingman ? WingmanPlayers : CompetitivePlayers;
 
     /* One pass: build as many matches as the queue currently allows.
 

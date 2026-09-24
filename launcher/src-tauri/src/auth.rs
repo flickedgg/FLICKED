@@ -21,7 +21,20 @@ use tauri_plugin_opener::OpenerExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-pub(crate) const API: &str = "http://localhost:5165";
+/* Where this launcher looks for FLICKED.
+
+   Baked in when the launcher is built, because a copy someone else installs has
+   to reach the machine running the matches, and localhost is only correct on the
+   machine the backend is being developed on. Build a release for others with:
+
+       set FLICKED_API=http://YOUR_SERVER_IP:5165
+
+   build.rs asks Cargo to watch that variable, so changing it forces a rebuild
+   rather than leaving a stale address compiled in. */
+pub(crate) const API: &str = match option_env!("FLICKED_API") {
+    Some(url) => url,
+    None => "http://localhost:5165",
+};
 
 const KEYCHAIN_SERVICE: &str = "dev.flicked.launcher";
 const KEYCHAIN_USER: &str = "session-token";
