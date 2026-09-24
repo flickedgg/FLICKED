@@ -57,6 +57,9 @@ public class PoolFixture : IAsyncLifetime
         new ServerSecrets(DataProtectionProvider.Create("flicked-tests")),
         NullLogger<ServerPool>.Instance);
 
+    /// Closing a match and rating everyone in it (see RATING.md).
+    public MatchResults NewResults(FlickedDbContext db) => new(db, NullLogger<MatchResults>.Instance);
+
     private static DbContextOptions<FlickedDbContext> Options(string connectionString) =>
         new DbContextOptionsBuilder<FlickedDbContext>().UseNpgsql(connectionString).Options;
 
@@ -92,6 +95,62 @@ public class PoolFixture : IAsyncLifetime
         db.Players.AddRange(players);
         await db.SaveChangesAsync();
         return players;
+    }
+
+    /* One player in a match that is about to be rated: where they started, which
+       side they were on, and the figures round_end would have left on their row.
+
+       Wins and Losses are how the rating system knows whether somebody is still
+       provisional, so a test that wants an established player says so here. */
+    public record Contestant(int Rating, int Team, int Kills = 0, int Deaths = 0, int Adr = 0,
+                             int Wins = 20, int Losses = 20);
+
+    /* A Live match with that lineup on it, ready to be finished.
+
+       Players are made fresh for each one, so a test can move ratings around
+       without any other test noticing. */
+    public async Task<Match> AddLiveMatchAsync(params Contestant[] lineup)
+    {
+        await using var db = NewContext();
+
+        var match = new Match
+        {
+            Map = "de_mirage",
+            Status = MatchStatus.Live,
+            PlayedAt = DateTimeOffset.UtcNow,
+        };
+
+        foreach (var entry in lineup)
+        {
+            var player = new Player(0, $"test-{Guid.NewGuid():N}"[..12], entry.Rating, entry.Wins, entry.Losses);
+            db.Players.Add(player);
+            await db.SaveChangesAsync();
+
+            match.Players.Add(new MatchPlayer
+            {
+                PlayerId = player.Id,
+                Team = entry.Team,
+                Kills = entry.Kills,
+                Deaths = entry.Deaths,
+                Adr = entry.Adr,
+            });
+        }
+
+        db.Matches.Add(match);
+        await db.SaveChangesAsync();
+        return match;
+    }
+
+    /// Everyone in a match, their rating and what the match paid them.
+    public async Task<List<(int Rating, int Wins, int Losses, int Delta)>> RatedAsync(int matchId)
+    {
+        await using var db = NewContext();
+        return await db.MatchPlayers
+            .Where(mp => mp.MatchId == matchId)
+            .OrderBy(mp => mp.PlayerId)
+            .Select(mp => new ValueTuple<int, int, int, int>(
+                mp.Player!.Rating, mp.Player.Wins, mp.Player.Losses, mp.RatingDelta))
+            .ToListAsync();
     }
 
     public async Task QueueAsync(IEnumerable<Player> players, DateTimeOffset? joinedAt = null)
