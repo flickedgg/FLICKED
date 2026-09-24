@@ -549,6 +549,8 @@ img.friend-av, .rail-av img{ object-fit:cover; background:rgba(255,255,255,.04);
 }
 .result.is-W{ background:rgba(95,191,143,.12); color:var(--win); }
 .result.is-L{ background:rgba(255,255,255,.05); color:var(--subtle); }
+/* MR12 without overtime can end 12-12, and a draw is not a loss */
+.result.is-D{ background:rgba(255,255,255,.05); color:var(--muted); }
 .recent-map{ display:grid; font-size:13.5px; font-weight:500; color:var(--foreground); min-width:0; }
 .recent-map small{ font-size:11.5px; font-weight:400; color:var(--faint); }
 .delta{ text-align:right; }
@@ -655,6 +657,11 @@ button:hover > .news-more svg{ transform:translateX(3px); }
 .rank{ color:var(--faint); }
 .who{ display:flex; align-items:center; gap:8px; font-weight:500; color:var(--foreground); }
 .table-lb .is-top .rank{ color:var(--primary-light); }
+/* the rating, and what the last match did to it, on one line */
+.lb-rating{ display:flex; align-items:baseline; gap:7px; }
+.lb-delta{ font-size:11px; }
+.lb-delta.is-up{ color:var(--win); }
+.lb-delta.is-down{ color:var(--faint); }
 .table-lb .is-you{
   border-top:1px solid rgba(246,86,0,.3);
   background:linear-gradient(90deg,rgba(246,86,0,.1),transparent 60%);

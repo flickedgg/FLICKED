@@ -40,8 +40,11 @@ export default function Matches() {
             <span role="cell" className="mono">{m.score}</span>
             <span role="cell" className="mono">{m.kd}</span>
             <span role="cell" className="mono">{m.adr}</span>
-            <span role="cell" className={`mono delta ${m.delta > 0 ? "is-up" : "is-down"}`}>
-              {m.delta > 0 ? "+" : "−"}{Math.abs(m.delta)}
+            {/* Zero is its own case: a draw between equals, or a match played
+                before there was a rating system, is neither a gain nor a loss
+                and should not be dressed up as one. */}
+            <span role="cell" className={`mono delta ${m.delta > 0 ? "is-up" : m.delta < 0 ? "is-down" : ""}`}>
+              {m.delta > 0 ? "+" : m.delta < 0 ? "−" : ""}{Math.abs(m.delta)}
             </span>
             <span role="cell" className="mono faint">#{m.id}</span>
           </div>

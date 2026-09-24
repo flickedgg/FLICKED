@@ -12,13 +12,18 @@ export type RecentMatch = {
   kd: string; adr: number; delta: number; when: string;
 };
 /* What /api/matches returns: one player's view of a match. Unlike RecentMatch
-   the map is a server code (de_mirage) and the time is a real timestamp. */
+   the map is a server code (de_mirage) and the time is a real timestamp.
+   "D" is a draw — MR12 without overtime can end 12-12. */
 export type MatchRow = {
-  id: number; map: string; result: "W" | "L"; score: string;
+  id: number; map: string; result: "W" | "L" | "D"; score: string;
   kd: string; adr: number; delta: number; playedAt: string;
 };
+/* `delta` is the rating change from this player's last finished match, so the
+   board shows movement as well as standing. `provisional` marks a rating still
+   inside its first ten matches (see RATING.md). */
 export type LeaderRow = {
-  rank: number; playerId: number; name: string; rating: number; wins: number; winRate: number;
+  rank: number; playerId: number; name: string; rating: number;
+  wins: number; losses: number; winRate: number; delta: number; provisional: boolean;
 };
 export type NewsCategory = "patch" | "update" | "event";
 export type NewsPost = {
