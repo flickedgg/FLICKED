@@ -41,6 +41,8 @@ builder.Services.AddSingleton<Rcon>();
 builder.Services.AddHostedService<PoolJanitor>();
 
 // Matchmaking: the queue becomes matches, and matches become servers.
+builder.Services.AddScoped<Parties>();
+builder.Services.AddScoped<Social>();
 builder.Services.AddScoped<Matchmaker>();
 builder.Services.AddScoped<MatchStarter>();
 builder.Services.AddHostedService<MatchmakerJanitor>();

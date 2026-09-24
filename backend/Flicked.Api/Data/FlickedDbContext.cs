@@ -13,6 +13,10 @@ public class FlickedDbContext : DbContext
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
 
+    public DbSet<Party> Parties => Set<Party>();
+    public DbSet<PartyMember> PartyMembers => Set<PartyMember>();
+    public DbSet<PartyInvite> PartyInvites => Set<PartyInvite>();
+
     public DbSet<GameServer> Servers => Set<GameServer>();
     public DbSet<QueueEntry> Queue => Set<QueueEntry>();
 
@@ -93,17 +97,73 @@ public class FlickedDbContext : DbContext
             friendship.Property(f => f.Status).HasConversion<string>().HasMaxLength(16);
         });
 
+        modelBuilder.Entity<Party>(party =>
+        {
+            /* A party belongs to its leader: if their account goes, so does the
+               party, and its members are freed to make or join another. */
+            party.HasOne(p => p.Leader)
+                .WithMany()
+                .HasForeignKey(p => p.LeaderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PartyMember>(member =>
+        {
+            /* The index the whole design leans on: one party per player, decided
+               by the database rather than by a check the API makes just before
+               inserting. See PartyMember for what it prevents. */
+            member.HasIndex(m => m.PlayerId).IsUnique();
+
+            member.HasOne(m => m.Party)
+                .WithMany(p => p.Members)
+                .HasForeignKey(m => m.PartyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            member.HasOne(m => m.Player)
+                .WithMany()
+                .HasForeignKey(m => m.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PartyInvite>(invite =>
+        {
+            // inviting somebody twice refreshes one row rather than making two
+            invite.HasIndex(i => new { i.PartyId, i.ToPlayerId }).IsUnique();
+            invite.HasIndex(i => i.ToPlayerId);   // "invites waiting for me", asked on every poll
+            invite.HasIndex(i => i.ExpiresAt);    // how the janitor sweeps them
+
+            invite.HasOne(i => i.Party)
+                .WithMany()
+                .HasForeignKey(i => i.PartyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            invite.HasOne(i => i.ToPlayer)
+                .WithMany()
+                .HasForeignKey(i => i.ToPlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            invite.HasOne(i => i.FromPlayer)
+                .WithMany()
+                .HasForeignKey(i => i.FromPlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<QueueEntry>(entry =>
         {
-            /* One queue entry per player: joining twice, or queueing for both
-               modes at once, would let somebody be matched into two matches. */
-            entry.HasIndex(q => q.PlayerId).IsUnique();
+            /* One queue entry per party: joining twice, or queueing for both
+               modes at once, would let a party be matched into two matches. One
+               party per player is enforced a table away, so this is also still
+               "one queue at a time" for a person. */
+            entry.HasIndex(q => q.PartyId).IsUnique();
             entry.HasIndex(q => new { q.Mode, q.JoinedAt });   // how the matchmaker reads it
             entry.Property(q => q.Mode).HasConversion<string>().HasMaxLength(16);
 
-            entry.HasOne(q => q.Player)
+            /* A disbanded party takes its queue entry with it, which is what
+               makes "membership changes dequeue the party" hold even when the
+               change is the party ceasing to exist. */
+            entry.HasOne(q => q.Party)
                 .WithMany()
-                .HasForeignKey(q => q.PlayerId)
+                .HasForeignKey(q => q.PartyId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

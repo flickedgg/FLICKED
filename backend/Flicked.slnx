@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Flicked.Api/Flicked.Api.csproj" />
+  <Project Path="Flicked.Api.Tests/Flicked.Api.Tests.csproj" />
 </Solution>

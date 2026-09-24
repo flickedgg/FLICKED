@@ -56,6 +56,8 @@ graph TB
         auth["AuthController<br/>sign-in, sessions, /me"]
         queue["QueueController<br/>join, accept, vote"]
         friends["FriendsController"]
+        party["PartyController<br/>invite, accept, kick"]
+        social["SocialController<br/>/api/social/state, polled"]
         matches["MatchesController<br/>your history"]
         news["NewsController<br/>LeaderboardController"]
         adminSrv["AdminServersController<br/>the pool, admin only"]
@@ -67,6 +69,8 @@ graph TB
         serverAuth["ServerAuth<br/>X-Server-Token → GameServer"]
         steamOpenId["SteamOpenId · SteamProfile"]
         matchmaker["Matchmaker<br/>queue → matches, phases"]
+        partySvc["Parties<br/>who may join, leave, invite"]
+        socialSvc["Social<br/>party state for a screen"]
         pool["ServerPool<br/>claim · release · sweep"]
         starter["MatchStarter<br/>token + RCON command"]
         rcon["Rcon<br/>Source RCON client"]
@@ -75,7 +79,7 @@ graph TB
 
     subgraph loops["Background loops"]
         poolJanitor["PoolJanitor · 30s<br/>expire leases, check servers"]
-        mmJanitor["MatchmakerJanitor · 2s<br/>form, advance, start"]
+        mmJanitor["MatchmakerJanitor · 2s<br/>form, advance, start,<br/>sweep expired invites"]
     end
 
     db[("PostgreSQL · EF Core")]
@@ -84,6 +88,12 @@ graph TB
     auth --> currentPlayer
     queue --> currentPlayer
     friends --> currentPlayer
+    party --> currentPlayer
+    party --> partySvc
+    party --> socialSvc
+    social --> currentPlayer
+    social --> socialSvc
+    queue --> partySvc
     matches --> currentPlayer
     adminSrv --> currentPlayer
     adminSrv --> starter
@@ -92,6 +102,7 @@ graph TB
     srvApi --> pool
 
     mmJanitor --> matchmaker
+    mmJanitor --> partySvc
     mmJanitor --> pool
     mmJanitor --> starter
     poolJanitor --> pool
@@ -235,7 +246,10 @@ leaves the pool silently and forever.
 erDiagram
     Players ||--o{ Sessions : "signs in"
     Players ||--o{ LoginCodes : "one-time"
-    Players ||--o{ QueueEntry : "waits"
+    Players ||--o| PartyMembers : "is in at most one"
+    Parties ||--|{ PartyMembers : "has"
+    Parties ||--o{ PartyInvites : "has pending"
+    Parties ||--o| QueueEntry : "waits, as one"
     Players ||--o{ MatchPlayers : "plays"
     Players ||--o{ Friendships : "requester / addressee"
     Matches ||--|{ MatchPlayers : "has ten"
@@ -272,11 +286,32 @@ erDiagram
         datetime LeaseUntil "the safety net"
     }
     QueueEntry {
-        int PlayerId UK "one queue at a time"
+        int PartyId UK "one queue at a time"
         enum Mode
         datetime JoinedAt "window widens from here"
     }
+    Parties {
+        int Id PK
+        int LeaderId FK "only the leader queues and invites"
+        datetime CreatedAt
+    }
+    PartyMembers {
+        int PartyId FK
+        int PlayerId UK "the database enforces one party each"
+        datetime JoinedAt "display order, and who leads next"
+    }
+    PartyInvites {
+        int PartyId FK
+        int ToPlayerId "unique with PartyId"
+        int FromPlayerId
+        datetime ExpiresAt "swept by MatchmakerJanitor"
+    }
 ```
+
+**Every queue entry is a party**, and somebody playing alone is a party of one.
+There is no second shape of queue entry for solo players, so there is no solo
+path for the party path to disagree with: the matchmaker only ever asks how many
+seats a row takes and what it is rated.
 
 **Derived, never stored:** a player's rank, win rate, K/D and ADR; a match's
 result; whether a server is free. Anything stored twice eventually disagrees
@@ -310,7 +345,7 @@ scripting bug in the UI cannot walk off with a session.
 graph LR
     subgraph webview["Webview · React + TypeScript"]
         views["Views<br/>Play · Matches · Friends<br/>Leaderboard · News"]
-        hooks["Hooks<br/>useSession · useFriends<br/>useQueue · usePresence"]
+        hooks["Hooks<br/>useSession · useSocial<br/>useQueue · useParty · usePresence"]
         api["lib/api.ts<br/>public endpoints"]
     end
 

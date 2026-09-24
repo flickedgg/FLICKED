@@ -3,6 +3,7 @@ using System;
 using Flicked.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Flicked.Api.Migrations
 {
     [DbContext(typeof(FlickedDbContext))]
-    partial class FlickedDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924152308_AddParties")]
+    partial class AddParties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -672,12 +675,12 @@ namespace Flicked.Api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
-                    b.Property<int>("PartyId")
+                    b.Property<int>("PlayerId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PartyId")
+                    b.HasIndex("PlayerId")
                         .IsUnique();
 
                     b.HasIndex("Mode", "JoinedAt");
@@ -835,13 +838,13 @@ namespace Flicked.Api.Migrations
 
             modelBuilder.Entity("Flicked.Api.Models.QueueEntry", b =>
                 {
-                    b.HasOne("Flicked.Api.Models.Party", "Party")
+                    b.HasOne("Flicked.Api.Models.Player", "Player")
                         .WithMany()
-                        .HasForeignKey("PartyId")
+                        .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Party");
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("Flicked.Api.Models.Session", b =>

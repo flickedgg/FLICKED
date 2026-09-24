@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MODES } from "../data/demo";
 import type { Queue } from "../hooks/useQueue";
 import type { Party } from "../hooks/useParty";
+import type { Social } from "../hooks/useSocial";
 import { PartyCards } from "../components/PartyCards";
 import { FriendsPanel } from "../components/FriendsPanel";
 import { useSession } from "../hooks/useSession";
@@ -10,8 +11,8 @@ import { Icon } from "../components/Icon";
 
 const FRIENDS_KEY = "flicked.friends";
 
-export function Play({ queue, party, mode, setMode }: {
-  queue: Queue; party: Party; mode: string; setMode: (id: string) => void;
+export function Play({ queue, party, social, mode, setMode }: {
+  queue: Queue; party: Party; social: Social; mode: string; setMode: (id: string) => void;
 }) {
   const searching = queue.phase === "searching";
   const current = MODES.find(m => m.id === mode)!;
@@ -79,7 +80,10 @@ export function Play({ queue, party, mode, setMode }: {
                   <span className="launch-sub">{queue.label}</span>
                 </div>
                 <span className="launch-clock"><Elapsed since={queue.startedAt} /></span>
-                <button className="btn btn-outline btn-lg" onClick={queue.cancel}>
+                {/* the leader queued for everyone, so the leader stops it */}
+                <button className="btn btn-outline btn-lg" onClick={queue.cancel}
+                        disabled={!party.leads}
+                        title={party.leads ? undefined : "Only the party leader can cancel"}>
                   <Icon name="x" size={16} />Cancel
                 </button>
               </>
@@ -93,7 +97,10 @@ export function Play({ queue, party, mode, setMode }: {
                       : `${current.format} · ${party.members.length ? `party of ${1 + party.members.length}` : "solo"} · map vote after accept`}
                   </span>
                 </div>
-                <button className="btn btn-primary btn-xl" disabled={party.pending.length > 0} onClick={() => queue.start(current.name)}>
+                <button className="btn btn-primary btn-xl"
+                        disabled={party.pending.length > 0 || !party.leads}
+                        title={party.leads ? undefined : "Only the party leader can queue"}
+                        onClick={() => queue.start(current.name)}>
                   <Icon name="play" size={16} />Find match
                 </button>
               </>
@@ -107,6 +114,8 @@ export function Play({ queue, party, mode, setMode }: {
           searchRef={searchRef}
           collapsed={!friendsOpen}
           onToggle={() => setFriendsOpen(o => !o)}
+          social={social}
+          seats={current.size}
         />
       </aside>
     </div>
