@@ -120,6 +120,21 @@ public class PoolFixture : IAsyncLifetime
         return entry.Party!;
     }
 
+    /// Friends already, without going through the request and the accept.
+    public async Task BefriendAsync(Player a, Player b)
+    {
+        await using var db = NewContext();
+        db.Friendships.Add(new Friendship
+        {
+            RequesterId = a.Id,
+            AddresseeId = b.Id,
+            Status = FriendshipStatus.Accepted,
+            CreatedAt = DateTimeOffset.UtcNow,
+            RespondedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
     /// A party that is not queueing: for the rules about joining and leaving one.
     public async Task<Party> AddPartyAsync(IReadOnlyList<Player> members)
     {

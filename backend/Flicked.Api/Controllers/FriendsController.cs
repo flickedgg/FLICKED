@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
@@ -17,6 +15,10 @@ namespace Flicked.Api.Controllers;
      POST   /api/friends/requests/{id}/accept
      DELETE /api/friends/requests/{id}      decline an incoming one, or cancel your own
      DELETE /api/friends/{id}               remove a friend
+
+   The list the launcher polls is not here: friends and party state are drawn on
+   the same panel and change at the same rate, so they are answered together by
+   /api/social/state rather than by two polls that can disagree.
 */
 [ApiController]
 [Route("api/friends")]
@@ -29,88 +31,6 @@ public class FriendsController(FlickedDbContext db, CurrentPlayer current) : Con
 
     public record SearchResult(int PlayerId, string Name, string? AvatarUrl, int Rating,
                                string Relationship);
-
-    public record FriendsState(List<FriendSummary> Friends, List<RequestSummary> Requests);
-
-    /* Everything the friends panel shows, in one request.
-
-       This is the endpoint the launcher polls, so its cost is paid over and over
-       by every signed-in client, and the two things that made polling expensive
-       are dealt with here rather than in the client:
-
-         one request instead of two. Each request authenticates, which is its own
-         indexed lookup, so asking for friends and requests separately doubled the
-         work to answer a question that is always asked as one;
-
-         one database query instead of two. Friends and pending requests are rows
-         in the same table with different statuses, and the split is a filter in
-         memory over a handful of rows, not a second round trip.
-
-       The answer is ETagged. Nothing usually changes between polls, so the common
-       case ends at 304 with no body: no serialisation, no transfer, and the client
-       keeps what it has instead of re-rendering an identical list. The query still
-       runs - the ETag is computed from the rows, not instead of them - so this
-       saves everything above the database, and the database work is two indexed
-       lookups.
-
-       When a push channel replaces this, the client keeps the same shape: a
-       version changed, so reload. Only the transport moves. */
-    [HttpGet("state")]
-    public async Task<IActionResult> GetState(CancellationToken ct)
-    {
-        var me = await current.GetAsync(ct);
-        if (me is null) return Unauthorized();
-
-        /* Scalars rather than the whole Player: this runs on a timer, and
-           selecting the navigation would fetch every column of every friend to
-           show a name, an avatar and a rating. */
-        var rows = await db.Friendships
-            .Where(f => (f.Status == FriendshipStatus.Accepted || f.Status == FriendshipStatus.Pending)
-                     && (f.RequesterId == me.Id || f.AddresseeId == me.Id))
-            .Select(f => new
-            {
-                f.Status,
-                f.CreatedAt,
-                Incoming = f.AddresseeId == me.Id,
-                OtherId = f.RequesterId == me.Id ? f.AddresseeId : f.RequesterId,
-                Name = f.RequesterId == me.Id ? f.Addressee!.Name : f.Requester!.Name,
-                AvatarUrl = f.RequesterId == me.Id ? f.Addressee!.AvatarUrl : f.Requester!.AvatarUrl,
-                Rating = f.RequesterId == me.Id ? f.Addressee!.Rating : f.Requester!.Rating,
-            })
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var friends = rows.Where(r => r.Status == FriendshipStatus.Accepted)
-            .OrderBy(r => r.Name)
-            .Select(r => new FriendSummary(r.OtherId, r.Name, r.AvatarUrl, r.Rating))
-            .ToList();
-
-        var requests = rows.Where(r => r.Status == FriendshipStatus.Pending)
-            .OrderByDescending(r => r.CreatedAt)
-            .Select(r => new RequestSummary(r.OtherId, r.Name, r.AvatarUrl, r.CreatedAt, r.Incoming))
-            .ToList();
-
-        /* The ETag covers everything the panel draws, so a friend's rating or
-           avatar changing counts as a change. Built from the ordered lists that
-           were just made, so it cannot disagree with the body it labels. */
-        var etag = Etag(friends, requests);
-        if (Request.Headers.IfNoneMatch.Contains(etag)) return StatusCode(StatusCodes.Status304NotModified);
-
-        Response.Headers.ETag = etag;
-        return Ok(new FriendsState(friends, requests));
-    }
-
-    private static string Etag(List<FriendSummary> friends, List<RequestSummary> requests)
-    {
-        var text = new StringBuilder();
-        foreach (var f in friends) text.Append(f.PlayerId).Append(':').Append(f.Rating).Append(':').Append(f.Name).Append(';');
-        text.Append('|');
-        foreach (var r in requests) text.Append(r.PlayerId).Append(':').Append(r.Incoming ? '1' : '0').Append(';');
-
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()));
-        // Quoted, because an ETag that is not quoted is not a valid one.
-        return $"\"{Convert.ToHexString(hash)[..16]}\"";
-    }
 
     [HttpGet]
     public async Task<IActionResult> GetFriends(CancellationToken ct)
