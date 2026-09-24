@@ -1,7 +1,11 @@
 /* Demo data until the backend exists. Everything the UI reads from here
    will come from the FLICKED API later — keep the shapes, swap the source. */
 
-export type Mode = { id: string; name: string; format: string; note: string; size: number };
+/* `soon` marks a mode that is shown but cannot be queued for. Kept visible
+   rather than hidden so the plan is legible: the mode exists, it is not ready.
+   The backend already sizes Wingman matches (Matchmaker.PlayersFor), so this is
+   only about not offering a queue nobody can fill yet. */
+export type Mode = { id: string; name: string; format: string; note: string; size: number; soon?: boolean };
 export type Presence = "online" | "ingame" | "offline";
 export type Stats = { matches: number; winRate: number; kd: number; adr: number };
 export type Friend = {
@@ -43,7 +47,7 @@ export const ACCOUNT = {
 
 export const MODES: Mode[] = [
   { id: "comp",    name: "Competitive", format: "5v5 · MR12", note: "Ranked. Map veto, full match.", size: 5 },
-  { id: "wingman", name: "Wingman",     format: "2v2 · MR8",  note: "Ranked. Short matches, small maps.", size: 2 },
+  { id: "wingman", name: "Wingman",     format: "2v2 · MR8",  note: "Ranked. Short matches, small maps.", size: 2, soon: true },
 ];
 
 export const FRIENDS: Friend[] = [

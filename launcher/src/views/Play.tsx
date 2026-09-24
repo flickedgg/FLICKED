@@ -55,11 +55,13 @@ export function Play({ queue, party, mode, setMode }: {
                   role="radio"
                   aria-checked={mode === m.id}
                   className={`seg-btn${mode === m.id ? " is-on" : ""}`}
-                  disabled={searching || tooBig}
-                  title={tooBig ? `Too many players for ${m.name} (max ${m.size})` : m.note}
+                  disabled={searching || tooBig || m.soon}
+                  title={m.soon
+                    ? `${m.name} is not available yet`
+                    : tooBig ? `Too many players for ${m.name} (max ${m.size})` : m.note}
                   onClick={() => setMode(m.id)}
                 >
-                  {m.name}<small>{m.format.split(" · ")[0]}</small>
+                  {m.name}<small>{m.soon ? "Soon" : m.format.split(" · ")[0]}</small>
                 </button>
               );
             })}
