@@ -16,10 +16,15 @@ namespace Flicked.Api.Controllers;
      POST   /api/queue/vote       vote for a map
 
    Everything works on the signed-in player. There is no "on behalf of" anywhere:
-   the launcher cannot queue somebody else, accept for them, or vote for them. */
+   the launcher cannot queue somebody else, accept for them, or vote for them.
+
+   Joining and leaving are the exception, and only in one direction: the queue
+   holds parties, so the leader's join puts their whole party in it. Accepting
+   and voting stay personal, because they are answers about you. */
 [ApiController]
 [Route("api/queue")]
-public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger<QueueController> log)
+public class QueueController(FlickedDbContext db, CurrentPlayer current, Parties parties,
+                             ILogger<QueueController> log)
     : ControllerBase
 {
     public record JoinRequest(string? Mode);
@@ -97,7 +102,16 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
                 votes));
         }
 
-        var waiting = await db.Queue.FirstOrDefaultAsync(q => q.PlayerId == me.Id, ct);
+        /* Your party's place in the queue, found from you in one query: the
+           unique index on PartyMember.PlayerId answers "which party", and this
+           is polled every second while something is happening, so it reads the
+           two columns it renders rather than the rows they sit in. */
+        var waiting = await db.Queue
+            .Where(q => q.Party!.Members.Any(m => m.PlayerId == me.Id))
+            .Select(q => new { q.Mode, q.JoinedAt })
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ct);
+
         return waiting is null
             ? Ok(new QueueState("idle", null, null, null, 0, 0, false, null, null, null, null, []))
             : Ok(new QueueState("searching", waiting.Mode.ToString(), waiting.JoinedAt, null,
@@ -113,21 +127,38 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
         if (!Enum.TryParse<ServerType>(body.Mode ?? "Competitive", ignoreCase: true, out var mode))
             return BadRequest("Mode must be Competitive or Wingman.");
 
-        // Being in a match and in the queue at once would let you be matched twice.
-        var busy = await db.MatchPlayers.AnyAsync(mp => mp.PlayerId == me.Id
-            && (mp.Match!.Status == MatchStatus.Accepting
-             || mp.Match.Status == MatchStatus.Voting
-             || mp.Match.Status == MatchStatus.Pending
-             || mp.Match.Status == MatchStatus.Live), ct);
-        if (busy) return Conflict("You are already in a match.");
+        var party = await parties.EnsureForAsync(me.Id, ct);
+        if (!party.IsLeader(me.Id)) return NotLeader();
 
-        if (await db.Queue.AnyAsync(q => q.PlayerId == me.Id, ct))
+        /* A party that cannot fit on one team of this mode could never be given
+           a match: it would have to be split, and not being split is the whole
+           point of a party. Refused here rather than left to wait forever. */
+        if (party.Size > Matchmaker.TeamSizeFor(mode))
+            return Conflict($"A party of {party.Size} is too large for {mode} (up to {Matchmaker.TeamSizeFor(mode)}).");
+
+        /* Being in a match and in the queue at once would let somebody be matched
+           twice, and one member in a match is enough to hold the party back. */
+        var busy = await db.MatchPlayers
+            .Where(mp => party.MemberIds.Contains(mp.PlayerId)
+                && (mp.Match!.Status == MatchStatus.Accepting
+                 || mp.Match.Status == MatchStatus.Voting
+                 || mp.Match.Status == MatchStatus.Pending
+                 || mp.Match.Status == MatchStatus.Live))
+            .Select(mp => mp.PlayerId)
+            .FirstOrDefaultAsync(ct);
+
+        if (busy != 0)
+            return Conflict(busy == me.Id
+                ? "You are already in a match."
+                : "Somebody in your party is already in a match.");
+
+        if (await db.Queue.AnyAsync(q => q.PartyId == party.Id, ct))
             return Conflict("You are already in the queue.");
 
-        db.Queue.Add(new QueueEntry { PlayerId = me.Id, Mode = mode, JoinedAt = DateTimeOffset.UtcNow });
+        db.Queue.Add(new QueueEntry { PartyId = party.Id, Mode = mode, JoinedAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync(ct);
 
-        log.LogInformation("Player {PlayerId} joined the {Mode} queue", me.Id, mode);
+        log.LogInformation("Party {PartyId} of {Size} joined the {Mode} queue", party.Id, party.Size, mode);
         return await State(ct);
     }
 
@@ -137,15 +168,23 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
         var me = await current.GetAsync(ct);
         if (me is null) return Unauthorized();
 
-        var waiting = await db.Queue.FirstOrDefaultAsync(q => q.PlayerId == me.Id, ct);
+        var party = await parties.OfAsync(me.Id, ct);
+
+        /* Leaving when you are not queued is not an error: the launcher may be
+           catching up with a match that formed a moment ago. Not being in a
+           party at all is the same thing, one step earlier. */
+        if (party is null) return await State(ct);
+
+        var waiting = await db.Queue.FirstOrDefaultAsync(q => q.PartyId == party.Id, ct);
         if (waiting is not null)
         {
+            // The leader queued for everyone, so the leader is who can stop it.
+            if (!party.IsLeader(me.Id)) return NotLeader();
+
             db.Queue.Remove(waiting);
             await db.SaveChangesAsync(ct);
         }
 
-        // Leaving when you are not queued is not an error: the launcher may be
-        // catching up with a match that formed a moment ago.
         return await State(ct);
     }
 
@@ -195,6 +234,11 @@ public class QueueController(FlickedDbContext db, CurrentPlayer current, ILogger
 
         return await State(ct);
     }
+
+    /* StatusCode(403) rather than Forbid(): this app registers no authentication
+       scheme, and Forbid() asks for a challenge it cannot produce. */
+    private IActionResult NotLeader() =>
+        StatusCode(StatusCodes.Status403Forbidden, "Only the party leader can do that.");
 
     /// The match this player is being asked about, if it is in the expected phase.
     private async Task<(Player? Me, MatchPlayer? Row, IActionResult? Error)> MyOfferAsync(

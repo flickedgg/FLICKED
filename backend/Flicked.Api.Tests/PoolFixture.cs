@@ -73,8 +73,14 @@ public class PoolFixture : IAsyncLifetime
     public async Task ResetMatchmakingAsync()
     {
         await using var db = NewContext();
-        // order matters: match rows reference players, queue rows reference players
+        // order matters: match rows reference players, queue rows reference parties
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Queue\"");
+        /* Every party, not only the test players', because a party of one is
+           made the first time somebody queues and the seeded players are used by
+           other tests. Nothing outside a test ever owns a row here. */
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"PartyInvites\"");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"PartyMembers\"");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Parties\"");
         await db.Database.ExecuteSqlRawAsync(
             "DELETE FROM \"MatchPlayers\" WHERE \"PlayerId\" IN (SELECT \"Id\" FROM \"Players\" WHERE \"Name\" LIKE 'test-%')");
         await db.Database.ExecuteSqlRawAsync(
@@ -94,19 +100,55 @@ public class PoolFixture : IAsyncLifetime
         return players;
     }
 
+    /* Everyone queues as a party, so these players each get a party of one.
+       Written the long way rather than through the API, because what is being
+       tested is the matchmaker, and a party of one is what it will see. */
     public async Task QueueAsync(IEnumerable<Player> players, DateTimeOffset? joinedAt = null)
     {
         await using var db = NewContext();
-        foreach (var player in players)
-        {
-            db.Queue.Add(new QueueEntry
-            {
-                PlayerId = player.Id,
-                Mode = ServerType.Competitive,
-                JoinedAt = joinedAt ?? DateTimeOffset.UtcNow,
-            });
-        }
+        foreach (var player in players) db.Queue.Add(Waiting([player], joinedAt));
         await db.SaveChangesAsync();
+    }
+
+    /// One party of several, waiting together.
+    public async Task<Party> QueuePartyAsync(IReadOnlyList<Player> members, DateTimeOffset? joinedAt = null)
+    {
+        await using var db = NewContext();
+        var entry = Waiting(members, joinedAt);
+        db.Queue.Add(entry);
+        await db.SaveChangesAsync();
+        return entry.Party!;
+    }
+
+    /// A party that is not queueing: for the rules about joining and leaving one.
+    public async Task<Party> AddPartyAsync(IReadOnlyList<Player> members)
+    {
+        await using var db = NewContext();
+        var party = NewParty(members);
+        db.Parties.Add(party);
+        await db.SaveChangesAsync();
+        return party;
+    }
+
+    private static QueueEntry Waiting(IReadOnlyList<Player> members, DateTimeOffset? joinedAt) => new()
+    {
+        Party = NewParty(members),
+        Mode = ServerType.Competitive,
+        JoinedAt = joinedAt ?? DateTimeOffset.UtcNow,
+    };
+
+    /// The first member leads, and they join in the order they are given.
+    private static Party NewParty(IReadOnlyList<Player> members)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new Party
+        {
+            LeaderId = members[0].Id,
+            CreatedAt = now,
+            Members = members
+                .Select((player, i) => new PartyMember { PlayerId = player.Id, JoinedAt = now.AddSeconds(i) })
+                .ToList(),
+        };
     }
 
     /// Marks everyone in the match as having accepted, optionally leaving some out.

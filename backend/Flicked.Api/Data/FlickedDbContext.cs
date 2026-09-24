@@ -150,15 +150,20 @@ public class FlickedDbContext : DbContext
 
         modelBuilder.Entity<QueueEntry>(entry =>
         {
-            /* One queue entry per player: joining twice, or queueing for both
-               modes at once, would let somebody be matched into two matches. */
-            entry.HasIndex(q => q.PlayerId).IsUnique();
+            /* One queue entry per party: joining twice, or queueing for both
+               modes at once, would let a party be matched into two matches. One
+               party per player is enforced a table away, so this is also still
+               "one queue at a time" for a person. */
+            entry.HasIndex(q => q.PartyId).IsUnique();
             entry.HasIndex(q => new { q.Mode, q.JoinedAt });   // how the matchmaker reads it
             entry.Property(q => q.Mode).HasConversion<string>().HasMaxLength(16);
 
-            entry.HasOne(q => q.Player)
+            /* A disbanded party takes its queue entry with it, which is what
+               makes "membership changes dequeue the party" hold even when the
+               change is the party ceasing to exist. */
+            entry.HasOne(q => q.Party)
                 .WithMany()
-                .HasForeignKey(q => q.PlayerId)
+                .HasForeignKey(q => q.PartyId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

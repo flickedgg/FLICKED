@@ -6,8 +6,10 @@ namespace Flicked.Api.Services;
 
 /* Turning a queue into matches.
 
-   Runs on a timer (see MatchmakerJanitor). Each pass looks at everyone waiting
-   for a mode, oldest first, and tries to build one full match around them. */
+   Runs on a timer (see MatchmakerJanitor). Each pass looks at every party
+   waiting for a mode, oldest first, and tries to build one full match around
+   them. A player queueing alone is a party of one, so there is no second path
+   through any of this for them. */
 public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
 {
     /// Everyone must answer within this, or the match is cancelled.
@@ -38,9 +40,14 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
     public static int PlayersFor(ServerType mode) =>
         mode == ServerType.Wingman ? WingmanPlayers : CompetitivePlayers;
 
+    /* One team's worth of seats, which is also the most people a party may hold
+       for that mode: a party that cannot fit on one team can never be given a
+       match, because the one thing a party guarantees is that it is not split. */
+    public static int TeamSizeFor(ServerType mode) => Math.Max(1, PlayersFor(mode) / 2);
+
     /* One pass: build as many matches as the queue currently allows.
 
-       Anchored on the longest-waiting player rather than scanning every possible
+       Anchored on the longest-waiting party rather than scanning every possible
        combination. Combinations grow factorially and the difference is invisible
        at this scale, while "whoever waited longest goes first" is a rule players
        can understand and complain about fairly. */
@@ -52,54 +59,89 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
         foreach (var mode in new[] { ServerType.Competitive, ServerType.Wingman })
         {
             var needed = PlayersFor(mode);
+            var waiting = await WaitingAsync(mode, ct);
 
-            var waiting = await db.Queue
-                .Include(q => q.Player)
-                .Where(q => q.Mode == mode)
-                .OrderBy(q => q.JoinedAt)
-                .ToListAsync(ct);
-
-            while (waiting.Count >= needed)
+            while (waiting.Sum(p => p.Size) >= needed)
             {
                 var group = Gather(waiting, needed, now);
                 if (group is null) break;   // nobody compatible enough yet; wait for the window to widen
 
                 made.Add(await CreateMatchAsync(mode, group, ct));
-                foreach (var entry in group) waiting.Remove(entry);
+                foreach (var party in group) waiting.Remove(party);
             }
         }
 
         return made;
     }
 
-    /* Finds `needed` players who all accept each other's rating range.
+    /* The queue for one mode, as the matchmaker needs to see it.
 
-       The rule is mutual: two players match only when the gap fits inside *both*
+       One query, projected to the four things that matter (when it joined, how
+       many seats, who is in it, what they are rated) rather than loading parties
+       and members as entities. This runs every two seconds forever, so it fetches
+       what it reads and nothing else, and it reads every member in the same round
+       trip rather than one query per waiting party. */
+    private async Task<List<WaitingParty>> WaitingAsync(ServerType mode, CancellationToken ct)
+    {
+        var rows = await db.Queue
+            .Where(q => q.Mode == mode)
+            .OrderBy(q => q.JoinedAt)
+            .Select(q => new
+            {
+                q.Id,
+                q.PartyId,
+                q.JoinedAt,
+                Members = q.Party!.Members
+                    .Select(m => new { m.PlayerId, m.Player!.Rating })
+                    .ToList(),
+            })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return rows
+            .Select(r => new WaitingParty(r.Id, r.PartyId, r.JoinedAt,
+                r.Members.Select(m => new Seat(m.PlayerId, m.Rating)).ToList()))
+            .ToList();
+    }
+
+    /* Enough parties to fill a match, all of whom accept each other's rating range.
+
+       The rule is mutual: two parties match only when the gap fits inside *both*
        their windows. Since a window widens with waiting time, somebody who just
        joined will not be dragged into a lopsided match, while somebody who has
-       waited two minutes becomes progressively easier to please. */
-    private static List<QueueEntry>? Gather(List<QueueEntry> waiting, int needed, DateTimeOffset now)
+       waited two minutes becomes progressively easier to please.
+
+       Admitting a party admits all of it, so the group is assembled by seats
+       rather than by heads. */
+    private static List<WaitingParty>? Gather(List<WaitingParty> waiting, int needed, DateTimeOffset now)
     {
         foreach (var anchor in waiting)
         {
-            var group = new List<QueueEntry> { anchor };
+            if (anchor.Size > needed) continue;
+
+            var group = new List<WaitingParty> { anchor };
+            var seats = anchor.Size;
 
             foreach (var other in waiting)
             {
-                if (other.Id == anchor.Id) continue;
+                if (other.EntryId == anchor.EntryId) continue;
+                if (seats + other.Size > needed) continue;      // would overflow the match
 
-                var gap = Math.Abs((other.Player?.Rating ?? 0) - (anchor.Player?.Rating ?? 0));
+                var gap = Math.Abs(other.Rating - anchor.Rating);
                 var allowed = Math.Min(anchor.ToleranceAt(now), other.ToleranceAt(now));
-                if (gap <= allowed) group.Add(other);
+                if (gap > allowed) continue;
 
-                if (group.Count == needed) return group;
+                group.Add(other);
+                seats += other.Size;
+
+                if (seats == needed) return group;
             }
         }
 
         return null;
     }
 
-    private async Task<Match> CreateMatchAsync(ServerType mode, List<QueueEntry> group, CancellationToken ct)
+    private async Task<Match> CreateMatchAsync(ServerType mode, List<WaitingParty> group, CancellationToken ct)
     {
         var match = new Match
         {
@@ -110,11 +152,17 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
         };
 
         db.Matches.Add(match);
-        db.Queue.RemoveRange(group);        // they are in a match now, not waiting
+
+        /* They are in a match now, not waiting. The rows were read as scalars, so
+           they are removed by id rather than by handing EF entities it already
+           has: same one statement, without a second read to get them. */
+        foreach (var party in group)
+            db.Queue.Remove(new QueueEntry { Id = party.EntryId, PartyId = party.PartyId });
+
         await db.SaveChangesAsync(ct);
 
-        log.LogInformation("Match {MatchId} formed for {Count} players ({Mode})",
-            match.Id, group.Count, mode);
+        log.LogInformation("Match {MatchId} formed for {Count} players in {Parties} parties ({Mode})",
+            match.Id, match.Players.Count, group.Count, mode);
         return match;
     }
 
@@ -122,9 +170,9 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
        the next two to B, the next two to A, and so on. It is not optimal, but it
        is simple, predictable, and close enough that nobody can point at the
        teams and say the system did something strange. */
-    private static List<MatchPlayer> Balance(List<QueueEntry> group)
+    private static List<MatchPlayer> Balance(List<WaitingParty> group)
     {
-        var ranked = group.OrderByDescending(q => q.Player?.Rating ?? 0).ToList();
+        var ranked = group.SelectMany(p => p.Members).OrderByDescending(m => m.Rating).ToList();
         var players = new List<MatchPlayer>();
 
         for (var i = 0; i < ranked.Count; i++)
@@ -170,7 +218,7 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
                 {
                     match.Status = MatchStatus.Cancelled;
                     cancelled++;
-                    await RequeueAsync(match, onlyThoseWhoAccepted: true, ct);
+                    await RequeueAsync(match, ct);
                     log.LogInformation("Match {MatchId} cancelled: not everyone accepted", match.Id);
                 }
             }
@@ -202,17 +250,56 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
         return leaders[Random.Shared.Next(leaders.Count)];
     }
 
-    private async Task RequeueAsync(Match match, bool onlyThoseWhoAccepted, CancellationToken ct)
+    /* Back to the queue, by party, for everyone who accepted.
+
+       Three indexed queries rather than one per player: which parties these
+       players are in now, and which of those are somehow already waiting. */
+    private async Task RequeueAsync(Match match, CancellationToken ct)
     {
         var mode = ServerType.Competitive;   // one mode for now; the match knows no better
         var joined = DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1);   // ahead of newcomers
 
-        foreach (var player in match.Players)
-        {
-            if (onlyThoseWhoAccepted && player.AcceptedAt is null) continue;
-            if (await db.Queue.AnyAsync(q => q.PlayerId == player.PlayerId, ct)) continue;
+        var accepted = match.Players
+            .Where(p => p.AcceptedAt is not null)
+            .Select(p => p.PlayerId)
+            .ToList();
+        if (accepted.Count == 0) return;
 
-            db.Queue.Add(new QueueEntry { PlayerId = player.PlayerId, Mode = mode, JoinedAt = joined });
-        }
+        var parties = await db.PartyMembers
+            .Where(m => accepted.Contains(m.PlayerId))
+            .Select(m => m.PartyId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var queued = await db.Queue
+            .Where(q => parties.Contains(q.PartyId))
+            .Select(q => q.PartyId)
+            .ToListAsync(ct);
+
+        foreach (var partyId in parties.Except(queued))
+            db.Queue.Add(new QueueEntry { PartyId = partyId, Mode = mode, JoinedAt = joined });
+    }
+
+    /// One member of a waiting party: who they are, and what they are rated.
+    private sealed record Seat(int PlayerId, int Rating);
+
+    /* A queue entry as the matchmaker sees it.
+
+       Two ratings, used for different things, and the difference matters.
+       Rating - the highest in the party - decides who this party is matched
+       with, because a 2600 queueing with a 1200 friend is a 2600 in the match
+       and an average would hand them opponents their friend cannot play
+       against. Strength - the sum - decides which team they go on, because a
+       side's strength is the whole side and not its best player.
+
+       Both are worked out once, when the row is read, rather than on every
+       comparison in a loop that is quadratic in the length of the queue. */
+    private sealed record WaitingParty(int EntryId, int PartyId, DateTimeOffset JoinedAt, List<Seat> Members)
+    {
+        public int Size { get; } = Members.Count;
+        public int Rating { get; } = Members.Count > 0 ? Members.Max(m => m.Rating) : 0;
+        public int Strength { get; } = Members.Sum(m => m.Rating);
+
+        public int ToleranceAt(DateTimeOffset now) => QueueEntry.Tolerance(JoinedAt, now);
     }
 }
