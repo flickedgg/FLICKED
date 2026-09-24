@@ -10,6 +10,13 @@ export default defineConfig(() => ({
 
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+
+    /* The API address, baked in at build time from the same FLICKED_API that
+       src-tauri/src/auth.rs reads. One variable on purpose: when the webview and
+       the Rust side took their address from different places, a launcher could
+       be built where signing in worked and the news screen quietly called the
+       machine it was built on. */
+    __FLICKED_API__: JSON.stringify(process.env.FLICKED_API ?? "http://localhost:5165"),
   },
 
   // the webview is always a modern engine (WebView2 on Windows), so skip legacy transforms

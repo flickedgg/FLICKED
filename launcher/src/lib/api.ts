@@ -3,7 +3,11 @@ import type { LeaderRow, MatchRow, NewsPost } from "../data/demo";
 
 /* Calls to the FLICKED backend. Public read-only endpoints live here;
    anything needing a session token will go through Rust instead. */
-const API = "http://localhost:5165";
+/* Set when the launcher is built (see vite.config.ts). These are the public
+   endpoints, fetched straight from the webview, and they were the one place
+   still pointing at localhost: on anybody else's machine news and the
+   leaderboard called their own PC and failed. */
+const API = __FLICKED_API__;
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`);
