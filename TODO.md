@@ -56,7 +56,21 @@ together.
 
 **Reported as:** stuck on 0 for a few seconds, or starting at 12 seconds.
 
-**Probable cause:** clock skew between the VPS and the player's PC. The backend
+**Cause: confirmed.** The two machines disagreed by 12 seconds, measured from the
+API's HTTP `Date` header against local time. Checking each against NTP separately
+showed the **development PC was 16.2 seconds behind real time** while the VPS was
+within 0.8 seconds. The reported "starts at 12 seconds" is that gap.
+
+It is drift on one machine, not a timezone: the backend sends UTC instants, which
+carry their own offset, so the VPS running on Jerusalem time cancels out.
+Syncing the affected clock (`w32tm /resync /force`, with the service set to start
+automatically) corrects a session, and the gap grew from 12 to 15 seconds within
+an hour, so an unsynced clock returns to this state on its own.
+
+That is precisely why the code must change: a player's clock is not ours to fix,
+and an error this size consumes an entire fifteen-second vote.
+
+**Mechanism:** clock skew between the VPS and the player's PC. The backend
 sends the instant a phase began (`since`, in UTC) and the launcher counts up from
 it using the local clock. If the server's clock is ahead, the timer starts partway
 through; if behind, it sits at zero until local time catches up. Both reported
