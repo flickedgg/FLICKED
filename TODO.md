@@ -7,7 +7,7 @@ players on distributed launcher builds. Ordered by what blocks a session.
 
 ## Blocking
 
-### 1. News and leaderboard fail in a distributed build
+### 1. News and leaderboard fail in a distributed build - [+]
 
 **Reported as:** rank and news blocked, looks like CORS.
 
@@ -33,7 +33,7 @@ chosen, it must be impossible to build a launcher where the two disagree.
 **Done when:** a launcher built on one machine shows news and leaderboard on
 another machine, with no backend running locally.
 
-### 2. Party invites do not work
+### 2. Party invites do not work - [ ]
 
 **Reported as:** cannot invite friends to a party.
 
@@ -52,7 +52,7 @@ together.
 
 ## Wrong behaviour
 
-### 3. The phase countdown is wrong by a few seconds
+### 3. The phase countdown is wrong by a few seconds - [+]
 
 **Reported as:** stuck on 0 for a few seconds, or starting at 12 seconds.
 
@@ -85,7 +85,7 @@ twelve-second error is most of the window.
 **Done when:** two launchers on different machines show the same countdown to
 within a second, and a phase always begins at 0.
 
-### 4. Friend requests do not appear until the view is remounted
+### 4. Friend requests do not appear until the view is remounted - [ ]
 
 **Reported as:** an incoming request only shows after navigating away and back.
 
@@ -104,7 +104,7 @@ without navigating.
 
 ## Interface
 
-### 5. The persistent search panel is not centred
+### 5. The persistent search panel is not centred - [+]
 
 The queue panel shown while browsing other pages sits left of centre. It is
 otherwise good and should stay as it is.
@@ -112,7 +112,7 @@ otherwise good and should stay as it is.
 **Done when:** it is horizontally centred at every window width the launcher
 supports.
 
-### 6. Remove the game section from Settings
+### 6. Remove the game section from Settings () - [+]
 
 It configures what Steam already owns. Delete the section rather than disable it,
 along with whatever it wrote, so nothing reads a setting that no longer has a
@@ -125,9 +125,6 @@ values.
 
 ## Known gaps, not from this session
 
-- **No match has ever finished.** `map_result` and `series_end` have never been
-  observed, so results reaching the leaderboard and match history is untested.
-  Next real match should be short and watched.
 - **A match cannot be cancelled** except by editing the database, and a player
   can leave the queue but not a match.
 - **Seeded demo players** (kovac, Halden, Nyx and the rest) appear on the
