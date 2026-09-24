@@ -112,7 +112,8 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
        waited two minutes becomes progressively easier to please.
 
        Admitting a party admits all of it, so the group is assembled by seats
-       rather than by heads. */
+       rather than by heads, and a full group is only usable if those seats can
+       also be dealt into two whole teams. */
     private static List<WaitingParty>? Gather(List<WaitingParty> waiting, int needed, DateTimeOffset now)
     {
         foreach (var anchor in waiting)
@@ -134,11 +135,38 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
                 group.Add(other);
                 seats += other.Size;
 
-                if (seats == needed) return group;
+                if (seats < needed) continue;
+                if (Splittable(group, needed / 2)) return group;
+
+                /* Full, but only by cutting a party in half. Parties of 4, 3 and
+                   3 sum to ten and cannot make two fives: 4+3 is seven and the
+                   remaining 3 is not five. The last one to arrive steps back out
+                   and the search carries on, because 4+3+2+1 does work and
+                   giving up on the anchor here would miss it. */
+                group.RemoveAt(group.Count - 1);
+                seats -= other.Size;
             }
         }
 
         return null;
+    }
+
+    /* Can these parties be dealt into two teams without splitting one?
+
+       Not implied by the seats adding up, and forgetting it is the bug this
+       exists to prevent. It is a subset sum over at most ten sizes: a table of
+       which seat counts one side can be made to hold, which is a few hundred
+       operations a few times a minute and not a cost worth thinking about. */
+    private static bool Splittable(List<WaitingParty> group, int half)
+    {
+        var reachable = new bool[half + 1];
+        reachable[0] = true;
+
+        foreach (var party in group)
+            for (var seats = half; seats >= party.Size; seats--)
+                if (reachable[seats - party.Size]) reachable[seats] = true;
+
+        return reachable[half];
     }
 
     private async Task<Match> CreateMatchAsync(ServerType mode, List<WaitingParty> group, CancellationToken ct)
@@ -148,7 +176,7 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
             Map = "",                       // decided by the vote
             Status = MatchStatus.Accepting,
             PlayedAt = DateTimeOffset.UtcNow,
-            Players = Balance(group),
+            Players = Balance(group, PlayersFor(mode) / 2),
         };
 
         db.Matches.Add(match);
@@ -166,23 +194,61 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
         return match;
     }
 
-    /* Two sides of similar strength, by snake draft: the best player goes to A,
-       the next two to B, the next two to A, and so on. It is not optimal, but it
-       is simple, predictable, and close enough that nobody can point at the
-       teams and say the system did something strange. */
-    private static List<MatchPlayer> Balance(List<WaitingParty> group)
-    {
-        var ranked = group.SelectMany(p => p.Members).OrderByDescending(m => m.Rating).ToList();
-        var players = new List<MatchPlayer>();
+    /* Two sides of similar strength, chosen rather than drafted.
 
-        for (var i = 0; i < ranked.Count; i++)
+       The snake draft this replaces assigned by player, which cannot keep a
+       party together. Instead every way of dealing these parties out is
+       considered, and the one that fills both teams with the smallest difference
+       in total rating wins. A party is one item in that search, so it is never
+       split, and a side's strength is the sum of its members rather than its
+       best player.
+
+       With at most ten parties there are at most 2^10 arrangements, nearly all
+       of which are the wrong size and cost one addition to rule out. That is
+       cheaper than the database round trip that preceded it, and unlike the
+       draft it is exact: no arrangement of these parties balances better.
+
+       Gather only ever returns a group that can be split this way, so the search
+       cannot come back empty; if it ever does, something upstream is wrong and
+       saying so beats forming a match with five against four. */
+    private static List<MatchPlayer> Balance(List<WaitingParty> group, int teamSize)
+    {
+        var total = group.Sum(p => p.Strength);
+        var best = -1;
+        var closest = int.MaxValue;
+
+        for (var arrangement = 0; arrangement < 1 << group.Count; arrangement++)
         {
-            // 0,3,4,7,8... on one side; 1,2,5,6... on the other
-            var team = (i % 4 is 0 or 3) ? 0 : 1;
-            players.Add(new MatchPlayer { PlayerId = ranked[i].PlayerId, Team = team });
+            var seats = 0;
+            var strength = 0;
+
+            for (var i = 0; i < group.Count; i++)
+            {
+                if ((arrangement & (1 << i)) == 0) continue;
+                seats += group[i].Size;
+                strength += group[i].Strength;
+            }
+
+            if (seats != teamSize) continue;
+
+            var difference = Math.Abs(strength - (total - strength));
+            if (difference >= closest) continue;
+
+            closest = difference;
+            best = arrangement;
         }
 
-        return players;
+        if (best < 0)
+            throw new InvalidOperationException(
+                $"These {group.Count} parties cannot make two teams of {teamSize}.");
+
+        return group
+            .SelectMany((party, i) => party.Members.Select(member => new MatchPlayer
+            {
+                PlayerId = member.PlayerId,
+                Team = (best & (1 << i)) != 0 ? 0 : 1,
+            }))
+            .ToList();
     }
 
     /* The phases that end on a clock rather than an answer.

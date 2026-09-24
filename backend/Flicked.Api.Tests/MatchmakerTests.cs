@@ -106,6 +106,126 @@ public class MatchmakerTests(PoolFixture fixture)
         Assert.True(Math.Abs(teamA - teamB) <= 100, $"teams differ by {Math.Abs(teamA - teamB)}");
     }
 
+    /* Ten seats that cannot make two fives. 4+3 is seven and the remaining 3 is
+       not five, so forming this match would mean splitting a party across the
+       teams, which is the one thing a party is for. */
+    [Fact]
+    public async Task Parties_of_four_three_and_three_are_not_matched()
+    {
+        await fixture.ResetMatchmakingAsync();
+        foreach (var size in new[] { 4, 3, 3 })
+            await fixture.QueuePartyAsync(await fixture.AddPlayersAsync(size, rating: 1500));
+
+        await using var db = fixture.NewContext();
+        Assert.Empty(await NewMatchmaker(db).FormMatchesAsync());
+
+        await using var check = fixture.NewContext();
+        Assert.Equal(3, await check.Queue.CountAsync());   // still waiting, not discarded
+    }
+
+    /// Five who queued together are a team, and the draft cannot take one of them.
+    [Fact]
+    public async Task A_party_of_five_fills_a_team_by_itself()
+    {
+        await fixture.ResetMatchmakingAsync();
+        var five = await fixture.AddPlayersAsync(5, rating: 1500);
+        await fixture.QueuePartyAsync(five);
+        await fixture.QueueAsync(await fixture.AddPlayersAsync(5, rating: 1500));
+
+        await using var db = fixture.NewContext();
+        var made = await NewMatchmaker(db).FormMatchesAsync();
+
+        await using var check = fixture.NewContext();
+        var rows = await check.MatchPlayers.Where(mp => mp.MatchId == made[0].Id).ToListAsync();
+        var theirs = rows.Where(r => five.Any(p => p.Id == r.PlayerId)).Select(r => r.Team).Distinct();
+
+        Assert.Single(theirs);
+        Assert.Equal(5, rows.Count(r => r.Team == 0));
+    }
+
+    /* Two parties that fill one side between them. The ratings are arranged so
+       that putting them together is also the most balanced arrangement, which is
+       what the draft is choosing between: every split here keeps both parties
+       whole, and only one of them makes the teams equal. */
+    [Fact]
+    public async Task Two_parties_that_fill_a_team_are_kept_whole_and_put_together()
+    {
+        await fixture.ResetMatchmakingAsync();
+        var three = await fixture.AddPlayersAsync(3, rating: 1600);
+        var two = await fixture.AddPlayersAsync(2, rating: 1500);
+        await fixture.QueuePartyAsync(three);
+        await fixture.QueuePartyAsync(two);
+        await fixture.QueueAsync(await fixture.AddPlayersAsync(5, rating: 1560));
+
+        await using var db = fixture.NewContext();
+        var made = await NewMatchmaker(db).FormMatchesAsync();
+
+        await using var check = fixture.NewContext();
+        var rows = await check.MatchPlayers.Where(mp => mp.MatchId == made[0].Id).ToListAsync();
+
+        var theirs = rows.Where(r => three.Any(p => p.Id == r.PlayerId)).Select(r => r.Team).Distinct().ToList();
+        var others = rows.Where(r => two.Any(p => p.Id == r.PlayerId)).Select(r => r.Team).Distinct().ToList();
+
+        Assert.Single(theirs);
+        Assert.Single(others);
+        Assert.Equal(theirs[0], others[0]);
+    }
+
+    /* The draft is exact, not merely legal.
+
+       These ten balance to a difference of 100, and no arrangement does better.
+       The snake draft that came before put them 500 apart, so this is the test
+       that would notice it coming back. */
+    [Fact]
+    public async Task The_teams_are_the_most_balanced_split_there_is()
+    {
+        await fixture.ResetMatchmakingAsync();
+        var waited = DateTimeOffset.UtcNow - TimeSpan.FromMinutes(10);
+        foreach (var rating in new[] { 1500, 1500, 1500, 1500, 1500, 1400, 1400, 1400, 1400, 1000 })
+            await fixture.QueueAsync(await fixture.AddPlayersAsync(1, rating), waited);
+
+        await using var db = fixture.NewContext();
+        var made = await NewMatchmaker(db).FormMatchesAsync();
+
+        await using var check = fixture.NewContext();
+        var rows = await check.MatchPlayers
+            .Include(mp => mp.Player)
+            .Where(mp => mp.MatchId == made[0].Id)
+            .ToListAsync();
+
+        var teamA = rows.Where(r => r.Team == 0).Sum(r => r.Player!.Rating);
+        var teamB = rows.Where(r => r.Team == 1).Sum(r => r.Player!.Rating);
+
+        Assert.Equal(100, Math.Abs(teamA - teamB));
+    }
+
+    /* A party is as strong as its best member, not its average.
+
+       A 2600 queueing with a 1200 friend is a 2600 in the match. Averaging them
+       to 1900 would hand them nine opponents their friend cannot play against,
+       so the party waits for a 2600's opposition instead. */
+    [Fact]
+    public async Task A_party_is_matched_on_its_highest_rating()
+    {
+        await fixture.ResetMatchmakingAsync();
+        var star = (await fixture.AddPlayersAsync(1, rating: 2600))[0];
+        var friend = (await fixture.AddPlayersAsync(1, rating: 1200))[0];
+        await fixture.QueuePartyAsync([star, friend]);
+        await fixture.QueueAsync(await fixture.AddPlayersAsync(8, rating: 1900));
+
+        await using (var db = fixture.NewContext())
+            Assert.Empty(await NewMatchmaker(db).FormMatchesAsync());
+
+        // the same party, against opponents who match the 2600 rather than the average
+        await fixture.QueueAsync(await fixture.AddPlayersAsync(8, rating: 2600));
+
+        await using var db2 = fixture.NewContext();
+        var made = await NewMatchmaker(db2).FormMatchesAsync();
+
+        Assert.Single(made);
+        Assert.Contains(made[0].Players, p => p.PlayerId == friend.Id);
+    }
+
     [Fact]
     public async Task Everyone_accepting_moves_the_match_to_voting()
     {
