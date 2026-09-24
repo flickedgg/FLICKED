@@ -5,7 +5,7 @@ namespace Flicked.Api.Models;
 public record MatchSummary(
     int Id,
     string Map,
-    string Result,          // "W" or "L", from this player's side
+    string Result,          // "W", "L" or "D", from this player's side
     string Score,           // this player's team first, e.g. "13-9"
     string Kd,              // "21/12"
     int Adr,

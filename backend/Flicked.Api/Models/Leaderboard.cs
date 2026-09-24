@@ -31,4 +31,14 @@ public class Player
     public string[] Friends = Array.Empty<string>();
 }
 
-public record LeaderboardEntry(int Rank, int PlayerId, string Name, int Rating, int Wins, int WinRate);
+/* A row on the ladder.
+
+   Delta is the rating change from this player's most recent finished match, so
+   the board shows movement and not only standing: "2140" says where somebody is,
+   "2140 +24" says they are climbing. Zero when they have never finished a match.
+
+   Provisional marks a rating still inside its first ten matches (see RATING.md).
+   A number built from two games sitting next to one built from three hundred is
+   worth an asterisk. */
+public record LeaderboardEntry(int Rank, int PlayerId, string Name, int Rating,
+                               int Wins, int Losses, int WinRate, int Delta, bool Provisional);

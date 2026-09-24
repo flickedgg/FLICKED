@@ -56,7 +56,8 @@ public class MatchesController : ControllerBase
             return new MatchSummary(
                 r.MatchId,
                 r.Map,
-                mine > theirs ? "W" : "L",
+                // MR12 without overtime can end 12-12, and a draw is not a loss
+                mine > theirs ? "W" : mine < theirs ? "L" : "D",
                 $"{mine}-{theirs}",
                 $"{r.Kills}/{r.Deaths}",
                 r.Adr,
