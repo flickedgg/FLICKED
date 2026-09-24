@@ -20,7 +20,7 @@ export type MatchRow = {
 };
 /* `delta` is the rating change from this player's last finished match, so the
    board shows movement as well as standing. `provisional` marks a rating still
-   inside its first ten matches (see RATING.md). */
+   inside its first ten matches (see docs/RATING.md). */
 export type LeaderRow = {
   rank: number; playerId: number; name: string; rating: number;
   wins: number; losses: number; winRate: number; delta: number; provisional: boolean;

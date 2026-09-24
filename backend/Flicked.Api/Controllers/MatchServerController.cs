@@ -16,7 +16,7 @@ namespace Flicked.Api.Controllers;
    check any registered server could read another match's roster or report a
    result for a game it never hosted.
 
-   See backend/MATCHZY.md for the payload shapes and where they came from. */
+   See docs/MATCHZY.md for the payload shapes and where they came from. */
 [ApiController]
 [Route("api/matches")]
 public class MatchServerController(
@@ -105,7 +105,7 @@ public class MatchServerController(
 
     /* Everything MatchZy has to say about a match.
 
-       Two facts from the plugin's source shape this (see MATCHZY.md):
+       Two facts from the plugin's source shape this (see docs/MATCHZY.md):
 
          it never retries and never deduplicates, so a slow or failing answer
          here loses that event for good: the work must be quick, and a repeat

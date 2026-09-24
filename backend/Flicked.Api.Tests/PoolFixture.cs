@@ -57,7 +57,7 @@ public class PoolFixture : IAsyncLifetime
         new ServerSecrets(DataProtectionProvider.Create("flicked-tests")),
         NullLogger<ServerPool>.Instance);
 
-    /// Closing a match and rating everyone in it (see RATING.md).
+    /// Closing a match and rating everyone in it (see docs/RATING.md).
     public MatchResults NewResults(FlickedDbContext db) => new(db, NullLogger<MatchResults>.Instance);
 
     private static DbContextOptions<FlickedDbContext> Options(string connectionString) =>

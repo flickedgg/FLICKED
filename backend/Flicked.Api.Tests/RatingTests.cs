@@ -6,7 +6,7 @@ namespace Flicked.Api.Tests;
 
    No database here on purpose: Services/Rating.cs is deliberately pure, so what
    the formula does at the edges can be asserted without a match existing. The
-   properties below are the ones RATING.md promises players, and each of them is
+   properties below are the ones docs/RATING.md promises players, and each of them is
    something a tuning change could quietly break. */
 public class RatingTests
 {

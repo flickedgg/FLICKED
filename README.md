@@ -33,7 +33,7 @@ Being clear about this saves everyone time:
 - **It does not ship an anti-cheat.** Use a community anti-cheat on your servers if you need one.
 - **It is not a Valve service** and has nothing to do with official CS2 matchmaking.
 
-Why these lines are drawn where they are: [ROADMAP.md](./ROADMAP.md).
+Why these lines are drawn where they are: [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ---
 
@@ -59,9 +59,19 @@ Why these lines are drawn where they are: [ROADMAP.md](./ROADMAP.md).
 | `./backend/` | API and database code (`Flicked.slnx` opens it) |
 | `./launcher/` | Desktop launcher |
 | `./docker-compose.yml` | PostgreSQL for local development |
-| `./DESIGN.md` | The design system shared by the website and launcher |
-| `./ARCHITECTURE.md` | How the pieces fit together, with diagrams |
-| `./ROADMAP.md` | What's next, and why the plan looks like this |
+| `./docs/` | Everything written down — see below |
+
+## Documentation
+
+| Document | What it answers |
+|---|---|
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | How the pieces fit together, with diagrams of every system |
+| [docs/DEPLOY.md](./docs/DEPLOY.md) | Building and hosting all three parts, and what running over HTTP costs you |
+| [docs/DESIGN.md](./docs/DESIGN.md) | The design system shared by the website and the launcher |
+| [docs/ROADMAP.md](./docs/ROADMAP.md) | What is next, and why the plan looks like this |
+| [docs/RATING.md](./docs/RATING.md) | How a match changes your rating, and why it is bounded the way it is |
+| [docs/PARTY.md](./docs/PARTY.md) | How queueing with friends works, from the table to the draft |
+| [docs/MATCHZY.md](./docs/MATCHZY.md) | What the CS2 plugin actually sends, verified against a real server |
 
 ## Running it locally
 

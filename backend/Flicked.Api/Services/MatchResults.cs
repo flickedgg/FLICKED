@@ -10,7 +10,7 @@ namespace Flicked.Api.Services;
    on purpose: if two places could finish a match, two places could rate one.
 
    MatchZy neither retries nor deduplicates, and series_end is documented to
-   arrive more than once (backend/MATCHZY.md). A rating system that is merely
+   arrive more than once (docs/MATCHZY.md). A rating system that is merely
    unlikely to double-apply will double-apply, so the right to apply a result is
    not a check but a claim on a row - see FinishAsync. */
 public class MatchResults(FlickedDbContext db, ILogger<MatchResults> log)

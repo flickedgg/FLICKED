@@ -37,7 +37,7 @@ public class Player
    the board shows movement and not only standing: "2140" says where somebody is,
    "2140 +24" says they are climbing. Zero when they have never finished a match.
 
-   Provisional marks a rating still inside its first ten matches (see RATING.md).
+   Provisional marks a rating still inside its first ten matches (see docs/RATING.md).
    A number built from two games sitting next to one built from three hundred is
    worth an asterisk. */
 public record LeaderboardEntry(int Rank, int PlayerId, string Name, int Rating,

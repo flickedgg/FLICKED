@@ -1,4 +1,4 @@
-// See DESIGN.md §8 (Motion): every animation is gated behind
+// See docs/DESIGN.md §8 (Motion): every animation is gated behind
 // prefers-reduced-motion, and the page is complete without any of it.
 
 export const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";

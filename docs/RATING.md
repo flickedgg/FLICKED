@@ -138,7 +138,7 @@ score (`1-0`, one map per match), which would otherwise make the per-round figur
 nonsense. It also covers a match abandoned after two rounds.
 
 Stats come from `round_end` and not `map_result` — MatchZy sends an empty players
-array in `map_result` (plugin bug #405, see `backend/MATCHZY.md`). If no stats ever
+array in `map_result` (plugin bug #405, see `docs/MATCHZY.md`). If no stats ever
 arrived, every player's figures are zero, every mean is zero, every `perf` is 0,
 and the system degrades cleanly to plain Elo rather than to nonsense.
 
@@ -212,7 +212,7 @@ it assumes the two teams are the same size either.
 ## Applied exactly once
 
 `series_end` can arrive twice. MatchZy does not deduplicate, does not retry, and
-does not know whether the last event it sent was received (`backend/MATCHZY.md`).
+does not know whether the last event it sent was received (`docs/MATCHZY.md`).
 A rating system that is merely unlikely to double-apply will double-apply.
 
 So the right to apply a result is not a check, it is a **claim on a row**:
@@ -368,4 +368,4 @@ against real Postgres like the pool and matchmaker suites.
 - **Rating deviation.** See *Why Elo and not Glicko*. The seam is `K`.
 - **Party-adjusted expectation.** A five-stack should be expected to beat five
   solo queuers of the same rating, and one day that belongs in `E`. Parties do not
-  exist in the backend yet (`PARTY.md`), so there is nothing to adjust for.
+  exist in the backend yet (`docs/PARTY.md`), so there is nothing to adjust for.

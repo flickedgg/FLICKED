@@ -18,7 +18,7 @@ public enum ServerType
 
    FLICKED does not create or host these: it keeps a pool of servers that already
    exist, claims a free one when a match is ready, and releases it afterwards
-   (see ROADMAP.md, "Server owners bring the servers"). */
+   (see docs/ROADMAP.md, "Server owners bring the servers"). */
 public class GameServer
 {
     public int Id { get; set; }

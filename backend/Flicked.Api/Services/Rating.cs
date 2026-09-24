@@ -3,7 +3,7 @@ namespace Flicked.Api.Services;
 /* What a match is worth.
 
    Elo on the result, with a bounded correction for how the player did inside it.
-   The reasoning, the constants and the worked examples are in RATING.md at the
+   The reasoning, the constants and the worked examples are in docs/RATING.md at the
    repository root; what is worth repeating here is the rule the rest of the file
    exists to protect:
 

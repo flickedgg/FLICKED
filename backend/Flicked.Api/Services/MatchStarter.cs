@@ -54,7 +54,7 @@ public class MatchStarter(
         /* Give the server a clean MatchZy before loading anything.
 
            MatchZy sets isMatchSetup = true when a config loads and never sets it
-           back (checked in its source, see backend/MATCHZY.md), so a server that
+           back (checked in its source, see docs/MATCHZY.md), so a server that
            has hosted one match refuses every later config for the life of the
            process: it keeps the old match and map while FLICKED believes the new
            one started, and players arrive at the wrong game.

@@ -6,7 +6,7 @@ namespace Flicked.Api.Models;
 /* The shapes MatchZy posts to our remote log URL.
 
    Transcribed from the plugin's own Events.cs and MatchData.cs, not invented;
-   see backend/MATCHZY.md for the links. Only the parts FLICKED uses are here:
+   see docs/MATCHZY.md for the links. Only the parts FLICKED uses are here:
    unknown fields are ignored by System.Text.Json, so this does not have to keep
    pace with everything the plugin sends.
 

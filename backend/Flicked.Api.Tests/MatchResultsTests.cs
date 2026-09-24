@@ -53,7 +53,7 @@ public class MatchResultsTests(PoolFixture fixture)
     /* The test this whole design exists for.
 
        MatchZy does not deduplicate and series_end is documented to arrive more
-       than once (backend/MATCHZY.md). If applying a result twice were merely
+       than once (docs/MATCHZY.md). If applying a result twice were merely
        unlikely rather than impossible, everyone in the match would be paid twice
        and the leaderboard would quietly stop meaning anything. */
     [Fact]
