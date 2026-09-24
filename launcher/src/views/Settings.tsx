@@ -6,12 +6,7 @@ import { openExternal } from "../lib/openExternal";
 
 const REPO = "https://github.com/viix0dev/FLICKED";
 
-// a rough check until the Rust side can look for cs2.exe itself
-const looksLikeCs2 = (path: string) => /counter-strike/i.test(path.trim());
-
 type Prefs = {
-  cs2Path: string;
-  launchOptions: string;
   startWithWindows: boolean;
   minimizeToTray: boolean;
   closeOnLaunch: boolean;
@@ -20,8 +15,6 @@ type Prefs = {
 };
 
 const DEFAULTS: Prefs = {
-  cs2Path: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive",
-  launchOptions: "-novid -high",
   startWithWindows: false,
   minimizeToTray: true,
   closeOnLaunch: false,
@@ -33,7 +26,12 @@ const DEFAULTS: Prefs = {
 // kept in localStorage for now; moves to a Rust-side store once settings drive real behaviour
 function load(): Prefs {
   try {
-    const { reduceMotion: _old, ...saved } = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+    /* cs2Path and launchOptions were the Game section, removed because Steam
+       already owns both: CS2 is launched through steam://, which finds the
+       install itself and applies the launch options set in Steam. Discarded on
+       read so a value nobody can change no longer rides along in storage. */
+    const { reduceMotion: _old, cs2Path: _path, launchOptions: _opts, ...saved } =
+      JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
     return { ...DEFAULTS, ...saved, motion: storedMotion() };
   } catch { return DEFAULTS; }
 }
@@ -113,26 +111,6 @@ export default function Settings() {
 
       <div className="settings-stack">
         <AccountCard />
-
-        <section className="card settings">
-          <p className="stat-k">Game</p>
-          <label className="field">
-            <span>CS2 install folder</span>
-            <input
-              className={`input mono${looksLikeCs2(prefs.cs2Path) ? "" : " is-warn"}`}
-              value={prefs.cs2Path}
-              onChange={e => set("cs2Path", e.target.value)}
-              spellCheck={false}
-            />
-            {!looksLikeCs2(prefs.cs2Path) && (
-              <span className="field-warn">This doesn't look like a CS2 folder. It usually ends in "Counter-Strike Global Offensive".</span>
-            )}
-          </label>
-          <label className="field">
-            <span>Launch options</span>
-            <input className="input mono" value={prefs.launchOptions} onChange={e => set("launchOptions", e.target.value)} spellCheck={false} />
-          </label>
-        </section>
 
         <section className="card settings">
           <p className="stat-k">Launcher</p>
