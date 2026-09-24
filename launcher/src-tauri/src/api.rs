@@ -101,16 +101,56 @@ pub async fn my_matches() -> Result<Option<Value>, String> {
     get("/api/matches").await
 }
 
-/// People you are friends with.
-#[tauri::command]
-pub async fn friends() -> Result<Option<Value>, String> {
-    get("/api/friends").await
-}
+/* The friends panel's whole state, polled.
+   
+   Takes the ETag from the last answer and hands it back to the server, which
+   replies 304 with no body when nothing has changed. That is the usual case, so
+   the usual poll costs a request and no parsing, no IPC payload and no re-render
+   in the webview.
 
-/// Pending requests, both the ones you sent and the ones waiting for you.
+   Three outcomes, kept distinct because the caller does something different for
+   each: `Ok(None)` is "not signed in" as everywhere else in this file,
+   `{"unchanged": true}` is 304, and anything else is a new state carrying the
+   ETag to send next time. */
 #[tauri::command]
-pub async fn friend_requests() -> Result<Option<Value>, String> {
-    get("/api/friends/requests").await
+pub async fn friends_state(etag: Option<String>) -> Result<Option<Value>, String> {
+    let Some(token) = read_token() else {
+        return Ok(None);
+    };
+
+    let mut request = reqwest::Client::new()
+        .get(url("/api/friends/state")?)
+        .bearer_auth(&token);
+
+    // Only a value the server itself gave us is ever sent back.
+    if let Some(tag) = etag.filter(|t| !t.is_empty()) {
+        request = request.header(reqwest::header::IF_NONE_MATCH, tag);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the server: {e}"))?;
+
+    if response.status() == StatusCode::NOT_MODIFIED {
+        return Ok(Some(serde_json::json!({ "unchanged": true })));
+    }
+
+    let tag = response
+        .headers()
+        .get(reqwest::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+
+    let Some(mut state) = read_reply(response).await? else {
+        return Ok(None);
+    };
+
+    if let (Some(object), Some(tag)) = (state.as_object_mut(), tag) {
+        object.insert("etag".into(), Value::String(tag));
+    }
+
+    Ok(Some(state))
 }
 
 /// Find a player by name or Steam ID. Each result carries your relationship to

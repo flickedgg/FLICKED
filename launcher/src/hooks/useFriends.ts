@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  acceptFriend, addFriend, fetchFriends, fetchRequests, removeFriend, removeRequest,
+  acceptFriend, addFriend, fetchFriendsState, removeFriend, removeRequest,
   searchPlayers, type Friend, type FriendRequest, type SearchResult,
 } from "../lib/friends";
+
+/* How often to ask, in milliseconds.
+
+   Nobody expects a friend request to arrive instantly, and the cost of asking is
+   paid by the server once per client per interval, forever. Five seconds while
+   you are looking at the launcher is quick enough to feel live; a launcher left
+   open behind a game all evening backs off to a minute, which is the difference
+   between one client costing 720 requests an hour and 60.
+
+   An unchanged answer is a 304 with no body, so most of these cost a request and
+   two indexed queries and nothing else. */
+const ACTIVE = 5_000;
+const IDLE = 60_000;
 
 export type Friends = ReturnType<typeof useFriends>;
 
@@ -22,15 +35,71 @@ export function useFriends() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const reload = useCallback(async () => {
-    const [list, pending] = await Promise.all([fetchFriends(), fetchRequests()]);
-    if (list === null || pending === null) { setSignedOut(true); return; }
-    setSignedOut(false);
-    setFriends(list);
-    setRequests(pending);
+  /* The ETag of the state on screen. Kept in a ref rather than state because
+     changing it must never cause a render: it is bookkeeping for the next
+     request, not something anyone sees. */
+  const etag = useRef<string | null>(null);
+
+  /* In flight already? Then skip this tick.
+
+     A slow answer must not stack requests behind it, which is how a struggling
+     server gets a queue of clients all asking again while it is busy. */
+  const busy = useRef(false);
+
+  const reload = useCallback(async (force = false) => {
+    /* A poll may be skipped while another is in flight; an action may not. You
+       pressed Accept, and the answer to "what is the list now" cannot be "a
+       request was already running, so nothing happened". */
+    if (busy.current && !force) return;
+    busy.current = true;
+    try {
+      const state = await fetchFriendsState(force ? null : etag.current);
+
+      if (state === null) { setSignedOut(true); return; }
+      setSignedOut(false);
+
+      // 304: what is on screen is current, so nothing is set and nothing renders.
+      if (state.unchanged) return;
+
+      etag.current = state.etag ?? null;
+      setFriends(state.friends);
+      setRequests(state.requests);
+    } finally {
+      busy.current = false;
+    }
   }, []);
 
-  useEffect(() => { reload().catch(() => setError("Could not reach the server.")); }, [reload]);
+  /* Poll while the panel is mounted.
+
+     The interval follows the window: a launcher nobody is looking at asks a
+     fraction as often, and asks immediately when it comes back, so returning to
+     the launcher shows current state rather than whatever the last slow tick
+     left behind. */
+  useEffect(() => {
+    let alive = true;
+    let timer: number;
+
+    const tick = async () => {
+      if (!alive) return;
+      await reload().catch(() => setError("Could not reach the server."));
+      if (!alive) return;
+      timer = window.setTimeout(tick, document.hasFocus() ? ACTIVE : IDLE);
+    };
+
+    const wake = () => {
+      clearTimeout(timer);
+      tick();
+    };
+
+    tick();
+    window.addEventListener("focus", wake);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      window.removeEventListener("focus", wake);
+    };
+  }, [reload]);
 
   /* Search runs 250ms after typing stops.*/
   const timer = useRef<number>(undefined);
@@ -55,7 +124,7 @@ export function useFriends() {
     setError(null);
     try {
       await run();
-      await reload();
+      await reload(true);   // your own action: ask for the state, not a 304
       if (query.trim().length >= 2) {
         setResults(await searchPlayers(query.trim()) ?? []);
       }

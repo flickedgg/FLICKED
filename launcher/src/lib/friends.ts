@@ -26,8 +26,18 @@ export type Relationship = "none" | "requested" | "incoming" | "friends" | "self
 
 export type SearchResult = Omit<Friend, never> & { relationship: Relationship };
 
-export const fetchFriends = () => invoke<Friend[] | null>("friends");
-export const fetchRequests = () => invoke<FriendRequest[] | null>("friend_requests");
+/* One answer for the whole panel, and the shape the launcher polls.
+
+   `unchanged` is the server saying 304: the state is what you already have.
+   `etag` labels the state that came back and is handed to the next call so the
+   server can answer 304 again. */
+export type FriendsState =
+  | { unchanged: true }
+  | { unchanged?: false; etag?: string; friends: Friend[]; requests: FriendRequest[] };
+
+export const fetchFriendsState = (etag: string | null) =>
+  invoke<FriendsState | null>("friends_state", { etag });
+
 export const searchPlayers = (query: string) => invoke<SearchResult[] | null>("search_players", { query });
 
 export const addFriend = (playerId: number) => invoke<unknown>("add_friend", { playerId });
