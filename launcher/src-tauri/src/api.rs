@@ -62,6 +62,45 @@ async fn get(path: &str) -> Result<Option<Value>, String> {
     send(Method::GET, url(path)?).await
 }
 
+/* News and the leaderboard: the same as any other endpoint, minus the token.
+
+   These used to be fetched by the webview directly, which put them under two
+   browser rules the rest of the launcher never meets. Tauri serves the app from
+   https://tauri.localhost on Windows, so a plain-http API is mixed content and
+   the request is dropped before it is sent; and being a different origin, what
+   does get sent needs CORS. Neither applies here, because this is not a browser.
+
+   No token is attached. These endpoints are public, and a request that does not
+   carry the session token cannot leak it. */
+async fn public_get(path: &str) -> Result<Value, String> {
+    let response = reqwest::Client::new()
+        .get(url(path)?)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the server: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Request failed ({}).", response.status()));
+    }
+
+    response
+        .json()
+        .await
+        .map_err(|e| format!("The server sent something unreadable: {e}"))
+}
+
+/// The news posts shown on the front page.
+#[tauri::command]
+pub async fn news() -> Result<Value, String> {
+    public_get("/api/news").await
+}
+
+/// The public leaderboard.
+#[tauri::command]
+pub async fn leaderboard() -> Result<Value, String> {
+    public_get("/api/leaderboard").await
+}
+
 /// Same as send(), with a JSON body.
 async fn send_json(method: Method, url: Url, body: Value) -> Result<Option<Value>, String> {
     let Some(token) = read_token() else {

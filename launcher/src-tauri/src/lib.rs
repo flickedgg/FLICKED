@@ -15,6 +15,8 @@ pub fn run() {
             auth::logout,
             api::my_matches,
             api::social_state,
+            api::news,
+            api::leaderboard,
             api::search_players,
             api::add_friend,
             api::accept_friend,

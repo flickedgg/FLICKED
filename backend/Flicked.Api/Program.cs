@@ -65,9 +65,15 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy
         .WithOrigins(
-            "http://localhost:1420",    // tauri dev (vite)
-            "http://tauri.localhost",   // the built app on Windows
-            "tauri://localhost",        // the built app on macOS and Linux
+            "http://localhost:1420",     // tauri dev (vite)
+            /* The built app on Windows. Tauri 2 serves it over https by default
+               and falls back to http, and the two are different origins to a
+               browser: with only one listed, the launcher's own news and
+               leaderboard screens are answered and then discarded, which reads
+               as a CORS fault rather than a missing origin. */
+            "https://tauri.localhost",
+            "http://tauri.localhost",
+            "tauri://localhost",         // the built app on macOS and Linux
             dashboard)                  // the admin dashboard, in a browser
         .AllowAnyHeader()
         .AllowAnyMethod()
