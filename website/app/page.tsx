@@ -4,6 +4,7 @@ import { CopyCommand } from "@/components/copy-command";
 import { FeatureBento } from "@/components/feature-bento";
 import { MatchRoom } from "@/components/match-room";
 import { MotionLayer } from "@/components/motion-layer";
+import { PreviewVideo } from "@/components/preview-video";
 import { SiteHeader } from "@/components/site-header";
 import { StackRow } from "@/components/stack-row";
 
@@ -103,6 +104,25 @@ export default function Home() {
         {/* ═══ STACK ═══ */}
         <section data-tone="quiet" className="mx-auto max-w-frame px-6 py-14 lg:px-10">
           <StackRow />
+        </section>
+
+        <Seam />
+
+        {/* ═══ PREVIEW ═══ */}
+        <section id="preview" data-tone="cool" className="mx-auto max-w-frame px-6 py-24 lg:px-10 lg:py-32">
+          <header className="grid items-end gap-6 lg:grid-cols-[1.2fr_1fr] lg:gap-16" data-rv>
+            <div>
+              <p className="eyebrow">Preview</p>
+              <h2 className="display h2 mt-6">Watch a match <span className="accent">come together</span>.</h2>
+            </div>
+            <p className="text-[16px] leading-relaxed text-muted lg:pb-2">
+              Ten players queue, everyone accepts, the map is voted for, and the server
+              loads it and pulls them in. No lobby links, no passwords passed around, no
+              admin standing by.
+            </p>
+          </header>
+
+          <PreviewVideo />
         </section>
 
         <Seam />

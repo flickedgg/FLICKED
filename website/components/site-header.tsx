@@ -6,6 +6,7 @@ import { motionOK } from "@/lib/motion";
 import { GitHubIcon, LINKS, Logo } from "./brand";
 
 export const SECTIONS = [
+  ["preview", "Preview"],
   ["features", "Features"],
   ["self-host", "Self-host"],
   ["compare", "Compare"],
