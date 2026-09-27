@@ -61,6 +61,18 @@ Why these lines are drawn where they are: [docs/ROADMAP.md](./docs/ROADMAP.md).
 | `./launcher/` | Desktop launcher |
 | `./docker-compose.yml` | PostgreSQL for local development |
 | `./docs/` | Everything written down — see below |
+| `./CONTRIBUTING.md` | How to work on FLICKED: setup, tests, style, pull requests |
+
+## Contributing
+
+Bug reports, fixes and features are welcome. Start with
+[CONTRIBUTING.md](./CONTRIBUTING.md) — it covers getting set up, running the
+tests (`dotnet test backend`, which needs Docker), and the two expectations worth
+knowing in advance: anything that changes behaviour comes with a test, and a pull
+request says what you actually verified.
+
+The *Known gaps* section of [docs/ROADMAP.md](./docs/ROADMAP.md) is a list of what
+is wrong today, if you want somewhere to start.
 
 ## Documentation
 
