@@ -3,8 +3,8 @@
 <img src="./assests/icon.png" align="right" alt="FLICKED icon" title="FLICKED icon" width="120">
 
 ![Game](https://shieldcn.dev/badge/Game-CS2.svg?variant=secondary&theme=orange&logo=counterstrike&logoColor=ffffff)
-[![Stars-Repo](https://shieldcn.dev/github/flickedgg/FLICKED/stars.svg?variant=branded)](https://github.com/flickedgg/FLICKED)
-![Version](https://shieldcn.dev/badge/Version:-Beta.svg?variant=secondary&logo=ri%3AFaTag)
+[![Stars](https://shieldcn.dev/github/flickedgg/FLICKED/stars.svg?variant=branded)](https://github.com/flickedgg/FLICKED)
+![Version](https://shieldcn.dev/badge/Version:-Alpha.svg?variant=secondary&logo=ri%3AFaTag)
 
 **FLICKED** is a free open-source self-hostable competitive platform for CS2: matchmaking,
 parties, ratings, match history and demos.
