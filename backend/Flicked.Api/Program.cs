@@ -1,4 +1,6 @@
+using System.Net;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Flicked.Api.Config;
 using Flicked.Api.Data;
 using Flicked.Api.Services;
@@ -87,7 +89,31 @@ builder.Services.AddCors(options =>
 Matchmaker.CompetitivePlayers = builder.Configuration.GetValue("Matchmaking:CompetitivePlayers", 10);
 Matchmaker.WingmanPlayers = builder.Configuration.GetValue("Matchmaking:WingmanPlayers", 4);
 
+/* Trust a reverse proxy running on this machine.
+
+   With Caddy or nginx in front (see docs/DEPLOY-LINUX.md), the request reaches
+   this app over http on loopback, so Request.IsHttps is false even though the
+   browser used https. That matters: the dashboard's session cookie is marked
+   Secure only when the request looks secure, so without this the one deployment
+   worth recommending is the one that quietly drops that flag.
+
+   Only a proxy on this machine is trusted. These headers are trivial for a
+   client to forge, so trusting them from anywhere would let anyone claim their
+   request arrived over https, or claim any address they liked in the log. */
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor;
+    // The IPv4 loopback is not in the defaults, and a proxy on the same host
+    // usually connects over it.
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+});
+
 var app = builder.Build();
+
+/* Before anything that reads the scheme or the caller's address, which is
+   everything below. */
+app.UseForwardedHeaders();
 
 /* Bring the database up to date on startup.
 

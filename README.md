@@ -68,6 +68,7 @@ Why these lines are drawn where they are: [docs/ROADMAP.md](./docs/ROADMAP.md).
 |---|---|
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | How the pieces fit together, with diagrams of every system |
 | [docs/DEPLOY.md](./docs/DEPLOY.md) | Building and hosting all three parts, and what running over HTTP costs you |
+| [docs/DEPLOY-LINUX.md](./docs/DEPLOY-LINUX.md) | The same deployment on Linux: systemd, a service user, and HTTPS with Caddy |
 | [docs/DESIGN.md](./docs/DESIGN.md) | The design system shared by the website and the launcher |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | What is next, and why the plan looks like this |
 | [docs/RATING.md](./docs/RATING.md) | How a match changes your rating, and why it is bounded the way it is |

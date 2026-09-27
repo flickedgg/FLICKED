@@ -7,6 +7,9 @@ This walks through the setup FLICKED was built for: **one Windows VPS running th
 CS2 server, the backend and the dashboard together**. Everything works the same
 spread across several machines; the addresses just stop being the same one.
 
+> **On Linux?** [DEPLOY-LINUX.md](./DEPLOY-LINUX.md) covers the same deployment
+> with systemd, a service user and HTTPS in the main path.
+>
 > **Read [Security](#security) before you invite anyone.** The setup here runs
 > over plain HTTP, which is fine for testing among people you know and not fine
 > for anything else. What that costs you is written down plainly rather than left
