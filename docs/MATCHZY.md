@@ -5,7 +5,13 @@ rather than from memory. Every claim here has a link; if something disagrees wit
 the plugin in practice, the source wins and this file is wrong.
 
 Read on 2026-09-23 against the `dev` branch of
-[shobhit-pathak/MatchZy](https://github.com/shobhit-pathak/MatchZy).
+[shobhit-pathak/MatchZy](https://github.com/shobhit-pathak/MatchZy), which is MIT
+licensed and does the hard part of running a CS2 match — knife rounds, pauses,
+demos, the veto flow. FLICKED would not have a working match without it.
+
+The quirks recorded below are the places where a plugin serving everybody meets a
+backend that wants one particular thing. They are written down so FLICKED handles
+them correctly, not as complaints.
 
 ---
 

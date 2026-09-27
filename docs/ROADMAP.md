@@ -26,43 +26,123 @@ Server owners run CS2 servers anyway. FLICKED coordinates them.
 
 ---
 
-## Now
+## Where it is, 27 September 2026
 
-The launcher runs on demo data, with real matchmaking flow, parties, map vote and Discord
-presence. The backend serves news from a hardcoded list. The database has just arrived and
-holds nothing yet.
+The whole path works end to end, on a real server, with real people: two players
+signed in through Steam, queued, accepted, voted a map, and CS2 connected them
+itself. The match finished and the result was written to Postgres.
 
-## Next
+Shipped and used:
 
-**0.3 · Real data**
-- News, leaderboard and match history come from PostgreSQL instead of hardcoded arrays
-- EF Core with migrations, so self-hosters can upgrade without losing data
+- **Real data.** News, leaderboard and match history come from PostgreSQL. EF Core
+  migrations apply on startup, so a self-hoster upgrades by replacing a binary.
+- **Accounts.** Steam sign-in, with the session token held in Rust and never handed
+  to the webview. A player's rating, record and history are their own.
+- **A server pool.** Servers are registered in the dashboard, RCON passwords
+  encrypted at rest. A match claims an idle server with `FOR UPDATE SKIP LOCKED`,
+  holds it on a lease, and releases it when the match ends. A server that stops
+  answering RCON is marked offline and skipped until it answers again.
+- **Matches.** The matchmaker forms them on rating windows that widen with waiting
+  time, runs accept and map-vote phases, tells the server what to load over RCON,
+  and waits for the map to actually change before anyone is given the address.
+  MatchZy needs no FLICKED-specific lines in `server.cfg`.
+- **Results and rating.** The server reports back over an authenticated endpoint.
+  Ratings, records and per-match figures update once per match — see
+  [RATING.md](./RATING.md).
+- **Parties.** Queueing with friends, drafted onto the same team — see
+  [PARTY.md](./PARTY.md).
+- **A dashboard** for admins, and a **deployment guide** for
+  [Windows](./DEPLOY.md) and [Linux](./DEPLOY-LINUX.md).
 
-**0.4 · Accounts**
-- Steam sign-in
-- The session token lives in Rust and never reaches the webview
-- A player's rating, division and stats are their own, not demo data
+Shipped but not yet proven in play, which is not the same thing:
 
-**0.5 · Servers and matches**
-- Server owners register a CS2 server (address, RCON password, region)
-- The backend claims an idle server for a match and releases it when the match ends
-- Leases and heartbeats, so a crashed server returns to the pool by itself
-- The launcher hands the player a `connect` address
+- **Parties** and **rating** are merged, tested and deployed, but no party has
+  formed between two real launchers and no rating has moved in a live match yet.
 
-**0.6 · Results**
-- The server reports the score and player stats back, authenticated with a server token
-- Ratings update, match history fills, demos are linked
+## Known gaps
 
-**1.0 · Public alpha**
-- Ten friends can queue, get matched, play and see the result
-- A self-hoster can follow the README and reach the same point
+Things that are wrong or missing today, written down so they are not rediscovered:
+
+- **Declining a match does not requeue anyone.** The comment promises it; only the
+  twenty-second timeout path actually does it. With parties it now also costs a
+  party its place in the queue.
+- **A cancelled Wingman match requeues its players into Competitive.** The mode is
+  not stored on the match, so there is nothing to requeue them into correctly.
+- **Wingman is disabled in the launcher.** The backend supports it; there is no
+  Wingman server in the pool to send it to.
+- **No live updates.** Friends, parties and the queue are polled. It works, and a
+  push channel would replace the transport without changing what the screens read.
+- **No presence.** Whether a friend is online, in menus or in a match is runtime
+  state, and belongs with that push channel.
+- **Demos are recorded but not linked** to a match anywhere a player can reach.
+- **A stuck match needs SQL.** There is no admin action to cancel one, and a
+  player can leave the queue but not a match.
+- **Seeded demo players** share the leaderboard with real ones on any instance
+  that ran the migrations.
+- **The live instance runs over plain HTTP**, which is a deliberate choice for
+  testing among friends and is not safe for anything else. The reasoning and the
+  cost are in [DEPLOY.md](./DEPLOY.md#security).
+
+## Planned
+
+What the next updates are aimed at, roughly in order.
+
+**A FLICKED plugin, built on MatchZy.** The decision below says MatchZy first and
+a custom plugin later; this is the later, and "custom" turns out not to mean
+"from scratch".
+
+MatchZy is the reason matches work at all. Knife rounds, pauses, demo recording,
+the veto flow and a working event pipeline are months of careful work that this
+project did not have to do, and it is maintained properly — the behaviour
+FLICKED depends on was verified against a real server and documented in
+[MATCHZY.md](./MATCHZY.md) rather than guessed at.
+
+What FLICKED wants is not a better plugin; it is a plugin that answers to one
+backend. A general-purpose match plugin has to serve everyone's setup, which
+means its event format is a compromise and its lifecycle assumes a human admin is
+present. FLICKED is neither: it drives the server over RCON, has its own
+database, and wants things a shared plugin has no reason to provide — per-match
+admin control from the dashboard, moderation while a match is live, and stats
+shaped the way FLICKED stores them instead of translated on arrival.
+
+**MatchZy is MIT licensed**, so the sensible route is to build on it rather than
+start again: fork it, keep what works, and change the parts that only matter to
+FLICKED. That keeps the years of edge cases already handled and turns this from a
+rewrite into a focused change — and whatever comes of it carries MatchZy's
+copyright notice and credit, as the licence requires and as is plainly deserved.
+
+Nothing starts until the current arrangement is genuinely the limiting factor.
+
+**Bans.** Admins need to be able to remove someone from the servers and the
+launcher. Two stages: first a ban on the Steam account, which is simple, honest
+and enough for the usual case; later a hardware ban, so someone who returns on a
+fresh Steam account is refused as well.
+
+> This is moderation, not anti-cheat. It removes people an admin has decided to
+> remove. It does not detect anything, and nothing here changes the
+> [no anti-cheat](#2026-09-20--no-anti-cheat) decision.
+
+Worth being clear-eyed about the second stage before building it: a hardware ban
+means the launcher collecting identifiers from the player's machine, which is
+something players deserve to be told about plainly rather than discover, and which
+a determined person can change. It raises the cost of coming back; it does not
+prevent it.
+
+**Party codes.** A short code the leader can copy, share and let someone join
+with, for the times an invite is the wrong shape — a Discord call, a friend not on
+your friends list yet. The groundwork is done: parties, invites and membership are
+real, and a code is one column and one endpoint on top of them. The placeholder
+button that used to hint at this was removed when parties became real, because a
+button that does nothing is worse than no button.
 
 ## Not planned
 
 - **Anti-cheat.** See the decision below.
-- **Creating or hosting CS2 servers.** FLICKED coordinates servers, it does not provision
-  them. Not ruled out forever, but not planned. See "Maybe later" in the decision below.
-- **Mobile apps, a web launcher, tournaments and brackets.** Maybe one day. Not promised.
+- **Creating or hosting CS2 servers.** FLICKED coordinates servers, it does not
+  provision them. Not ruled out forever, but not planned. See "Maybe later" in the
+  decision below.
+- **Mobile apps, a web launcher, tournaments and brackets.** Maybe one day. Not
+  promised.
 
 ---
 
