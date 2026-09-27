@@ -4,7 +4,7 @@ import { PREFS_EVENT, PREFS_KEY } from "../lib/prefs";
 import { AccountCard } from "../components/AccountCard";
 import { openExternal } from "../lib/openExternal";
 
-const REPO = "https://github.com/viix0dev/FLICKED";
+const REPO = "https://github.com/flickedgg/FLICKED";
 
 type Prefs = {
   startWithWindows: boolean;

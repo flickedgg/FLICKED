@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-export const REPO = "https://github.com/viix0dev/FLICKED";
+export const REPO = "https://github.com/flickedgg/FLICKED";
 export const LINKS = {
   repo: REPO,
   readme: `${REPO}#readme`,
