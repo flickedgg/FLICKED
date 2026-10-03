@@ -24,8 +24,30 @@ src/
   views/              Play (eager), Matches / Leaderboard / News / Settings (lazy-loaded)
   data/demo.ts        demo data until the backend exists
 src-tauri/            Rust side, window config, capabilities
+  app-icon.png        1024² source the icon set is generated from (see below)
+  icons/              generated; do not edit by hand
   src/presence.rs     Discord Rich Presence (hooks/usePresence.ts decides what it shows)
 ```
+
+## Icon
+
+`src-tauri/icons/` is generated, never edited by hand. The source is
+`src-tauri/app-icon.png`: 1024×1024, the mark from `assests/icon.png` centred on
+transparency at 88% of the canvas. To rebuild the set after changing it:
+
+```
+npm run tauri icon src-tauri/app-icon.png
+```
+
+That rewrites every PNG size, the Windows `.ico` (16, 24, 32, 48, 64 and 256 in
+one file) and the macOS `.icns`. It also writes `icons/android/` and
+`icons/ios/`, which this project does not build — delete them.
+
+**What it costs:** the mark is three separated bands on transparency, so below
+roughly 48px it reads as three orange bars rather than a figure. That is the
+price of shipping the brand asset exactly as drawn; a solid dark plate behind it
+would keep its shape down to 16px, at the cost of no longer matching the icon
+used everywhere else.
 
 ## Performance rules
 
