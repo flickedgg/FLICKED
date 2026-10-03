@@ -60,7 +60,7 @@ export function ServerForm({ existing, busy, error, onSubmit, onCancel }: {
         </Field>
 
         <Field label="Mode" hint="What this server is configured for">
-          <select value={type} onChange={e => setType(e.target.value as ServerType)} className={input}>
+          <select value={type} onChange={e => setType(e.target.value as ServerType)} className={select}>
             <option value="Competitive">Competitive · 5v5</option>
             <option value="Wingman">Wingman · 2v2</option>
           </select>
@@ -98,9 +98,17 @@ export function ServerForm({ existing, busy, error, onSubmit, onCancel }: {
   );
 }
 
-const input =
-  "w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-[14px] " +
+const field =
+  "w-full rounded-md border border-white/10 px-3 py-2 text-[14px] " +
   "text-foreground outline-none focus:border-primary/60";
+
+const input = `${field} bg-black/20`;
+
+/* A dropdown needs an opaque colour of its own, and so do its options: the list
+   is drawn by the browser over the page rather than inside it, so there is
+   nothing dark behind a translucent background and white text lands on the
+   system's white. See the same pair in news-form.tsx. */
+const select = `${field} bg-elevated [&>option]:bg-elevated [&>option]:text-foreground`;
 
 function Field({ label, hint, children }: {
   label: string; hint?: string; children: React.ReactNode;
