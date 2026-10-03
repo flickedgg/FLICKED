@@ -31,6 +31,12 @@
 }
 
 :root{
+  /* Native controls are drawn by the browser, not by this stylesheet: the list a
+     <select> drops down, the calendar behind <input type="date">, scrollbars.
+     Without this they come up in the system's light scheme, and the white text
+     the rest of this file sets then sits on white. */
+  color-scheme: dark;
+
   --bg:#0c0c0d;
   --surface:#131315;
   --elevated:#19191c;

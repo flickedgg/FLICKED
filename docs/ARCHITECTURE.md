@@ -61,6 +61,7 @@ graph TB
         matches["MatchesController<br/>your history"]
         news["NewsController<br/>LeaderboardController"]
         adminSrv["AdminServersController<br/>the pool, admin only"]
+        adminNews["AdminNewsController<br/>the feed, admin only"]
         srvApi["MatchServerController<br/>ServersController<br/>called by CS2 servers"]
     end
 
@@ -73,6 +74,7 @@ graph TB
         socialSvc["Social<br/>party state for a screen"]
         pool["ServerPool<br/>claim · release · sweep"]
         starter["MatchStarter<br/>token + RCON command"]
+        newsSvc["NewsPosts<br/>publish · edit · remove"]
         rcon["Rcon<br/>Source RCON client"]
         secrets["Secrets · ServerSecrets<br/>hash what you check,<br/>encrypt what you replay"]
     end
@@ -98,6 +100,9 @@ graph TB
     adminSrv --> currentPlayer
     adminSrv --> starter
     adminSrv --> secrets
+    adminNews --> currentPlayer
+    adminNews --> newsSvc
+    news --> newsSvc
     srvApi --> serverAuth
     srvApi --> pool
 
@@ -377,15 +382,21 @@ lives. Each authenticated endpoint gets its own command rather than one general
 
 ```mermaid
 graph LR
-    page["app/page.tsx<br/>server component<br/>admin gate"]
+    routes["app/servers · app/news<br/>server components<br/>app/page.tsx redirects to /servers"]
+    shell["components/dash-shell.tsx<br/>the admin gate"]
     session["lib/session.ts<br/>forwards the cookie"]
-    panel["components/servers-panel.tsx<br/>client component"]
-    servers["lib/servers.ts<br/>credentials: include"]
-    backend["Backend<br/>/api/admin/servers"]
+    panels["servers-panel · news-panel<br/>client components"]
+    libs["lib/servers.ts · lib/news.ts<br/>credentials: include"]
+    backend["Backend<br/>/api/admin/servers<br/>/api/admin/news"]
 
-    page --> session --> backend
-    page --> panel --> servers --> backend
+    routes --> shell --> session --> backend
+    routes --> panels --> libs --> backend
 ```
+
+**The gate is a component, not a layout.** `DashShell` wraps each page rather
+than `app/layout.tsx` doing the checking, because the gate has to know which
+page was asked for: that is the `returnTo` Steam sends somebody back to, and a
+layout cannot return a sign-in card in place of the route beneath it.
 
 **Two gotchas worth knowing**, both of which cost time here:
 

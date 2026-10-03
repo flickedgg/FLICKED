@@ -51,7 +51,12 @@ Shipped and used:
   [RATING.md](./RATING.md).
 - **Parties.** Queueing with friends, drafted onto the same team — see
   [PARTY.md](./PARTY.md).
-- **A dashboard** for admins, and a **deployment guide** for
+- **News.** Admins write posts in the dashboard — updates, events and patch notes —
+  and every launcher's News screen reads that one feed. A post is live when it is
+  saved; its id is a slug made from the title and stays put when the title is
+  corrected.
+- **A dashboard** for admins, with the server pool and the news feed on their own
+  pages, and a **deployment guide** for
   [Windows](./DEPLOY.md) and [Linux](./DEPLOY-LINUX.md).
 
 Shipped but not yet proven in play, which is not the same thing:
