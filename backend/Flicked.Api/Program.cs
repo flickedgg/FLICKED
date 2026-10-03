@@ -49,6 +49,9 @@ builder.Services.AddScoped<Matchmaker>();
 builder.Services.AddScoped<MatchStarter>();
 builder.Services.AddHostedService<MatchmakerJanitor>();
 
+// Writing news, from the dashboard (see Controllers/AdminNewsController.cs).
+builder.Services.AddScoped<NewsPosts>();
+
 // Closing a match and paying out what it was worth (see docs/RATING.md).
 builder.Services.AddScoped<MatchResults>();
 

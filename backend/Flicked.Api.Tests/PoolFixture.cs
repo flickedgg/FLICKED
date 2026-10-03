@@ -60,6 +60,9 @@ public class PoolFixture : IAsyncLifetime
     /// Closing a match and rating everyone in it (see docs/RATING.md).
     public MatchResults NewResults(FlickedDbContext db) => new(db, NullLogger<MatchResults>.Instance);
 
+    /// Writing and editing news (see Services/NewsPosts.cs).
+    public NewsPosts NewNews(FlickedDbContext db) => new(db, NullLogger<NewsPosts>.Instance);
+
     private static DbContextOptions<FlickedDbContext> Options(string connectionString) =>
         new DbContextOptionsBuilder<FlickedDbContext>().UseNpgsql(connectionString).Options;
 
@@ -68,6 +71,17 @@ public class PoolFixture : IAsyncLifetime
     {
         await using var db = NewContext();
         await db.Database.ExecuteSqlRawAsync("DELETE FROM \"Servers\"");
+    }
+
+    /* Clears the feed, seeded demo posts included.
+
+       Those six rows come from a migration rather than from a test, so leaving
+       them in place would make every "what does the feed look like" assertion
+       count them. Nothing else in the suite reads News. */
+    public async Task ResetNewsAsync()
+    {
+        await using var db = NewContext();
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM \"News\"");
     }
 
     /* Matchmaking helpers. Players made here are throwaway rows with no Steam

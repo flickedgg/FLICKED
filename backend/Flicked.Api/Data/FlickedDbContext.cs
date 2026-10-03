@@ -22,50 +22,86 @@ public class FlickedDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        /* The demo posts every fresh database starts with.
+
+           Written out field by field rather than positionally now that NewsPost
+           is an editable row: HasData compares what is here with what is in the
+           table, so these values have to stay constant, which is why CreatedAt
+           is derived from each post's own date instead of "now". */
         modelBuilder.Entity<NewsPost>().HasData(
-                 new("n6", "patch", new DateOnly(2026, 9, 18), "0.2",
-              "Alpha 0.2: parties and map vote",
-              "Queue with up to four friends, and pick the map together after everyone accepts.",
-              [
-                  "Parties are here. Invite friends from the list on the Play screen, or share your party code so they can join directly. The leader queues for everyone.",
-                  "Map veto is replaced by a map vote. After all ten players accept, everyone has 15 seconds to vote. The map with the most votes is played; a tie is settled at random.",
-                  "Also in this release: the launcher starts faster, fonts ship with the app, and the window no longer flashes white on open.",
-              ]),
-          new("n5", "update", new DateOnly(2026, 9, 15), null,
-              "Self-host FLICKED on a single machine",
-              "A new guide walks through running the backend, database and one CS2 server on one box.",
-              [
-                  "You do not need a cluster to run FLICKED. The new guide in the repository shows how to run the backend, PostgreSQL, Redis and a CS2 dedicated server on a single machine.",
-                  "It covers ports, the match config, and how to point the launcher at your own server.",
-              ]),
-          new("n4", "event", new DateOnly(2026, 9, 12), null,
-              "Community Cup #1: sign-ups open",
-              "Five-stack tournament, single elimination, played on community servers.",
-              [
-                  "Sign-ups for the first FLICKED Community Cup are open. Teams of five, single elimination, best of one until the final.",
-                  "Matches run on community-hosted servers. Brackets are published the day before the first round.",
-              ]),
-          new("n3", "patch", new DateOnly(2026, 9, 8), "0.1.3",
-              "Alpha 0.1.3: queue fixes",
-              "Fixes a case where a declined match kept you in queue, plus smaller stability fixes.",
-              [
-                  "Declining a match now always returns you to the Play screen. Before, a declined match could leave you searching with no way to cancel.",
-                  "Reconnecting to a live match is faster, and the server log keeps the full match history.",
-              ]),
-          new("n2", "update", new DateOnly(2026, 9, 3), null,
-              "Every match now records a demo",
-              "Demos are saved on the server and can be downloaded from the match page.",
-              [
-                  "Every match played on FLICKED now records a demo automatically. Demos are stored on the server that hosted the match.",
-                  "Server owners can set how long demos are kept.",
-              ]),
-          new("n1", "event", new DateOnly(2026, 8, 29), null,
-              "Weekly 5v5 night, Fridays at 20:00 CET",
-              "A standing night to find full stacks. Queue times drop, games get better.",
-              [
-                  "Every Friday from 20:00 CET we play community 5v5s. More people in queue at the same time means shorter waits and closer matches.",
-              ])
-            );
+            new NewsPost
+            {
+                Id = "n6", Category = "patch", Date = new DateOnly(2026, 9, 18), Badge = "0.2",
+                CreatedAt = new DateTimeOffset(2026, 9, 18, 0, 0, 0, TimeSpan.Zero),
+                Title = "Alpha 0.2: parties and map vote",
+                Excerpt = "Queue with up to four friends, and pick the map together after everyone accepts.",
+                Body =
+                [
+                    "Parties are here. Invite friends from the list on the Play screen, or share your party code so they can join directly. The leader queues for everyone.",
+                    "Map veto is replaced by a map vote. After all ten players accept, everyone has 15 seconds to vote. The map with the most votes is played; a tie is settled at random.",
+                    "Also in this release: the launcher starts faster, fonts ship with the app, and the window no longer flashes white on open.",
+                ],
+            },
+            new NewsPost
+            {
+                Id = "n5", Category = "update", Date = new DateOnly(2026, 9, 15),
+                CreatedAt = new DateTimeOffset(2026, 9, 15, 0, 0, 0, TimeSpan.Zero),
+                Title = "Self-host FLICKED on a single machine",
+                Excerpt = "A new guide walks through running the backend, database and one CS2 server on one box.",
+                Body =
+                [
+                    "You do not need a cluster to run FLICKED. The new guide in the repository shows how to run the backend, PostgreSQL, Redis and a CS2 dedicated server on a single machine.",
+                    "It covers ports, the match config, and how to point the launcher at your own server.",
+                ],
+            },
+            new NewsPost
+            {
+                Id = "n4", Category = "event", Date = new DateOnly(2026, 9, 12),
+                CreatedAt = new DateTimeOffset(2026, 9, 12, 0, 0, 0, TimeSpan.Zero),
+                Title = "Community Cup #1: sign-ups open",
+                Excerpt = "Five-stack tournament, single elimination, played on community servers.",
+                Body =
+                [
+                    "Sign-ups for the first FLICKED Community Cup are open. Teams of five, single elimination, best of one until the final.",
+                    "Matches run on community-hosted servers. Brackets are published the day before the first round.",
+                ],
+            },
+            new NewsPost
+            {
+                Id = "n3", Category = "patch", Date = new DateOnly(2026, 9, 8), Badge = "0.1.3",
+                CreatedAt = new DateTimeOffset(2026, 9, 8, 0, 0, 0, TimeSpan.Zero),
+                Title = "Alpha 0.1.3: queue fixes",
+                Excerpt = "Fixes a case where a declined match kept you in queue, plus smaller stability fixes.",
+                Body =
+                [
+                    "Declining a match now always returns you to the Play screen. Before, a declined match could leave you searching with no way to cancel.",
+                    "Reconnecting to a live match is faster, and the server log keeps the full match history.",
+                ],
+            },
+            new NewsPost
+            {
+                Id = "n2", Category = "update", Date = new DateOnly(2026, 9, 3),
+                CreatedAt = new DateTimeOffset(2026, 9, 3, 0, 0, 0, TimeSpan.Zero),
+                Title = "Every match now records a demo",
+                Excerpt = "Demos are saved on the server and can be downloaded from the match page.",
+                Body =
+                [
+                    "Every match played on FLICKED now records a demo automatically. Demos are stored on the server that hosted the match.",
+                    "Server owners can set how long demos are kept.",
+                ],
+            },
+            new NewsPost
+            {
+                Id = "n1", Category = "event", Date = new DateOnly(2026, 8, 29),
+                CreatedAt = new DateTimeOffset(2026, 8, 29, 0, 0, 0, TimeSpan.Zero),
+                Title = "Weekly 5v5 night, Fridays at 20:00 CET",
+                Excerpt = "A standing night to find full stacks. Queue times drop, games get better.",
+                Body =
+                [
+                    "Every Friday from 20:00 CET we play community 5v5s. More people in queue at the same time means shorter waits and closer matches.",
+                ],
+            }
+        );
         modelBuilder.Entity<Player>().HasData(
     new Player(1, "kovac", 2614, 311, 146),
     new Player(2, "Halden", 2571, 287, 148),
