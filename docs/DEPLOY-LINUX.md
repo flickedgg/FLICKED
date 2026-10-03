@@ -320,6 +320,9 @@ Add the server in the dashboard with its host, port and RCON password. FLICKED
 reloads MatchZy before each match and sends everything else over RCON, so
 `server.cfg` needs no FLICKED-specific lines.
 
+For the game side afterwards — CS2 updates, the plugin chain, and how to tell
+which link broke — see [CS2-SERVER.md](./CS2-SERVER.md).
+
 ---
 
 ## 8. Keep the clock right

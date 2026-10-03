@@ -238,6 +238,9 @@ host, port and RCON password. FLICKED handles the rest:
 A server that answers the pool's RCON ping shows as **Idle** and can host
 matches. One that does not is **Offline** and is skipped until it answers.
 
+For the game side afterwards — CS2 updates, the plugin chain, and how to tell
+which link broke — see [CS2-SERVER.md](./CS2-SERVER.md).
+
 ### Keeping it running
 
 A console window dies when you log out of the VPS. Install [NSSM](https://nssm.cc)

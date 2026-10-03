@@ -86,6 +86,7 @@ is wrong today, if you want somewhere to start.
 | [docs/RATING.md](./docs/RATING.md) | How a match changes your rating, and why it is bounded the way it is |
 | [docs/PARTY.md](./docs/PARTY.md) | How queueing with friends works, from the table to the draft |
 | [docs/MATCHZY.md](./docs/MATCHZY.md) | What the CS2 plugin actually sends, verified against a real server |
+| [docs/CS2-SERVER.md](./docs/CS2-SERVER.md) | Keeping the game server alive: the plugin chain, CS2 updates, and what breaks |
 
 ## Running it locally
 
