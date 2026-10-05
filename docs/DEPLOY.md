@@ -179,7 +179,35 @@ DataProtection:KeyPath=C:\flicked\keys
 
 # Optional, while testing: play with fewer people than a real match needs.
 # Matchmaking:CompetitivePlayers=2
+
+# Optional, for a small community: start a match short-handed rather than wait
+# for a tenth player who is not coming. A full match is always tried first; this
+# only applies once the longest-waiting party has waited ShortHandedAfterSeconds.
+# Rounded up to an even number, because both teams must be the same size.
+# Matchmaking:MinCompetitivePlayers=6
+# Matchmaking:MinWingmanPlayers=2
+# Matchmaking:ShortHandedAfterSeconds=20
 ```
+
+#### About `Matchmaking:MinCompetitivePlayers`
+
+Unset, it equals `CompetitivePlayers`, which switches the behaviour off: an
+instance that says nothing here waits for a full match exactly as before.
+
+Set it to 6 and the matchmaker will, after the wait, form 4v4 or 3v3 out of
+whoever is queueing — largest first, so eight players become a 4v4 rather than a
+3v3 with two left over.
+
+**It only ever forms even matches.** A minimum of 5 or 7 is read as 6 or 8, and
+nine people waiting become one 4v4 and one player still in the queue. That is
+deliberate: every team is drafted as two equal sides, parties are never split
+across them, and the config handed to the CS2 server carries a single
+`players_per_team`. 5v4 is not a match worth starting.
+
+**A party can still be too big for a short match.** Party size is capped at half
+a *full* match (five for Competitive), which does not change here. A five-stack
+on an instance with a minimum of 6 can only ever play a full 5v5: six seats split
+3-3, and a party is never split.
 
 #### About `DataProtection:KeyPath`
 

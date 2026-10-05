@@ -216,7 +216,7 @@ and the lease is the safety net: a lost `series_end` cannot strand a server.
 ```mermaid
 stateDiagram-v2
     direction LR
-    [*] --> Accepting: ten players found
+    [*] --> Accepting: a full match found,<br/>or a short one after 20s
     Accepting --> Voting: everyone accepted
     Accepting --> Cancelled: someone declined<br/>or the 20s ran out
     Voting --> Pending: map chosen (15s)

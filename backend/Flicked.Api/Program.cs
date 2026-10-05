@@ -92,6 +92,16 @@ builder.Services.AddCors(options =>
 Matchmaker.CompetitivePlayers = builder.Configuration.GetValue("Matchmaking:CompetitivePlayers", 10);
 Matchmaker.WingmanPlayers = builder.Configuration.GetValue("Matchmaking:WingmanPlayers", 4);
 
+/* ...and the smallest match worth starting when nobody else turns up, for an
+   instance too small to fill one reliably. Defaulting each to its full size
+   leaves the behaviour of an instance that sets neither exactly as it was. */
+Matchmaker.MinCompetitivePlayers =
+    builder.Configuration.GetValue("Matchmaking:MinCompetitivePlayers", Matchmaker.CompetitivePlayers);
+Matchmaker.MinWingmanPlayers =
+    builder.Configuration.GetValue("Matchmaking:MinWingmanPlayers", Matchmaker.WingmanPlayers);
+Matchmaker.ShortHandedAfter = TimeSpan.FromSeconds(
+    builder.Configuration.GetValue("Matchmaking:ShortHandedAfterSeconds", 20));
+
 /* Trust a reverse proxy running on this machine.
 
    With Caddy or nginx in front (see docs/DEPLOY-LINUX.md), the request reaches

@@ -126,6 +126,15 @@ That is a subset-sum over at most ten items — a DP table of five columns, a fe
 hundred operations, a few times a minute. It is not a cost worth optimising, but
 it is a check worth having.
 
+**"The match size" is not always ten.** An instance that sets
+`Matchmaking:MinCompetitivePlayers` will, once the longest-waiting party has
+waited twenty seconds, also try eight, then six, and so on down to that minimum
+(see [DEPLOY.md](./DEPLOY.md)). Both conditions above are unchanged — they are
+just applied to a smaller size. Full matches are gathered for everybody first, so
+a short one is never formed around players who could have had a real one, and the
+sizes tried are always even, so condition 2 is still a split into two *equal*
+teams.
+
 ```
 gather(waiting, size, now):
     for anchor in waiting (oldest first):

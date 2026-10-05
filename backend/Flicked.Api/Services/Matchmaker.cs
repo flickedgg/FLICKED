@@ -40,9 +40,51 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
     public static int PlayersFor(ServerType mode) =>
         mode == ServerType.Wingman ? WingmanPlayers : CompetitivePlayers;
 
+    /* The smallest match worth starting when nobody else turns up.
+
+       A full match is always preferred and always tried first; these only come
+       into play once the longest-waiting party has waited ShortHandedAfter.
+
+           Matchmaking:MinCompetitivePlayers=6
+
+       Both default to the full size, which switches the whole thing off, so an
+       instance that sets nothing behaves exactly as it did before. For a
+       community that cannot reliably find ten people, waiting forever for a
+       tenth is worse than playing 3v3. */
+    public static int MinCompetitivePlayers { get; set; } = 10;
+    public static int MinWingmanPlayers { get; set; } = 4;
+
+    /* How long the longest-waiting party must already have waited before a short
+       match may be formed around it.
+
+       The point of the delay is that somebody who joins a second before the
+       tenth player should still get the real thing. Twenty seconds is long
+       enough for that and short enough that a quiet night is still playable. */
+    public static TimeSpan ShortHandedAfter { get; set; } = TimeSpan.FromSeconds(20);
+
+    /* The smallest match this mode will actually form.
+
+       Rounded up to an even number, and never more than a full match. Even,
+       because everything downstream assumes two teams of the same size: Balance
+       throws rather than return five against four, and the config handed to the
+       CS2 server carries a single players_per_team. 4v3 is not a match anybody
+       asked for.
+
+       Rounded up rather than down so a minimum of 5 means six players, and
+       nothing ever starts smaller than the number that was written down. */
+    public static int MinPlayersFor(ServerType mode)
+    {
+        var wanted = mode == ServerType.Wingman ? MinWingmanPlayers : MinCompetitivePlayers;
+        return Math.Max(2, Math.Min(PlayersFor(mode), wanted + Math.Abs(wanted % 2)));
+    }
+
     /* One team's worth of seats, which is also the most people a party may hold
        for that mode: a party that cannot fit on one team can never be given a
-       match, because the one thing a party guarantees is that it is not split. */
+       match, because the one thing a party guarantees is that it is not split.
+
+       Deliberately the *full* size, not the short-handed one. A party of five
+       stays legal on an instance that will settle for six, it simply cannot be
+       given one of those: six seats split 3-3, and this party does not split. */
     public static int TeamSizeFor(ServerType mode) => Math.Max(1, PlayersFor(mode) / 2);
 
     /* One pass: build as many matches as the queue currently allows.
@@ -58,17 +100,43 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
 
         foreach (var mode in new[] { ServerType.Competitive, ServerType.Wingman })
         {
-            var needed = PlayersFor(mode);
+            var full = PlayersFor(mode);
             var waiting = await WaitingAsync(mode, ct);
 
-            while (waiting.Sum(p => p.Size) >= needed)
-            {
-                var group = Gather(waiting, needed, now);
-                if (group is null) break;   // nobody compatible enough yet; wait for the window to widen
+            /* Full matches first, and all of them, before any short one is
+               considered. The order matters: done the other way, an early anchor
+               could take six people into a 3v3 while the players who would have
+               completed a real match were sitting two rows further down. */
+            made.AddRange(await FillAsync(mode, waiting, full, null, now, ct));
 
-                made.Add(await CreateMatchAsync(mode, group, ct));
-                foreach (var party in group) waiting.Remove(party);
-            }
+            /* Then the short ones, largest first, so eight beats six and six
+               beats four. Each is offered only to parties that have already
+               waited, which is what keeps this from quietly replacing the full
+               match somebody was four seconds away from getting. */
+            for (var size = full - 2; size >= MinPlayersFor(mode); size -= 2)
+                made.AddRange(await FillAsync(mode, waiting, size, ShortHandedAfter, now, ct));
+        }
+
+        return made;
+    }
+
+    /* As many matches of exactly this size as the queue currently allows.
+
+       `after` is how long the match's longest-waiting party must already have
+       waited. Null is "no such requirement", which is what a full match uses. */
+    private async Task<List<Match>> FillAsync(
+        ServerType mode, List<WaitingParty> waiting, int size,
+        TimeSpan? after, DateTimeOffset now, CancellationToken ct)
+    {
+        var made = new List<Match>();
+
+        while (waiting.Sum(p => p.Size) >= size)
+        {
+            var group = Gather(waiting, size, now, after);
+            if (group is null) break;   // nobody compatible enough yet; wait for the window to widen
+
+            made.Add(await CreateMatchAsync(mode, group, ct));
+            foreach (var party in group) waiting.Remove(party);
         }
 
         return made;
@@ -113,12 +181,20 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
 
        Admitting a party admits all of it, so the group is assembled by seats
        rather than by heads, and a full group is only usable if those seats can
-       also be dealt into two whole teams. */
-    private static List<WaitingParty>? Gather(List<WaitingParty> waiting, int needed, DateTimeOffset now)
+       also be dealt into two whole teams.
+
+       `after`, when given, is how long the anchor must already have waited. The
+       anchor is the longest-waiting party in whatever group comes back, so this
+       is the one place a short-handed match can be held back without having to
+       check every member: a party that joined a moment ago can still be swept
+       into one, which costs it nothing, but cannot cause one. */
+    private static List<WaitingParty>? Gather(List<WaitingParty> waiting, int needed,
+                                              DateTimeOffset now, TimeSpan? after = null)
     {
         foreach (var anchor in waiting)
         {
             if (anchor.Size > needed) continue;
+            if (after is not null && now - anchor.JoinedAt < after) continue;
 
             var group = new List<WaitingParty> { anchor };
             var seats = anchor.Size;
@@ -171,12 +247,18 @@ public class Matchmaker(FlickedDbContext db, ILogger<Matchmaker> log)
 
     private async Task<Match> CreateMatchAsync(ServerType mode, List<WaitingParty> group, CancellationToken ct)
     {
+        /* Half of what this group actually holds, not half of a full match: a
+           short-handed one has fewer. Gather has already proved these parties
+           deal into two teams of exactly this, so Balance cannot come back
+           empty. */
+        var teamSize = group.Sum(p => p.Size) / 2;
+
         var match = new Match
         {
             Map = "",                       // decided by the vote
             Status = MatchStatus.Accepting,
             PlayedAt = DateTimeOffset.UtcNow,
-            Players = Balance(group, PlayersFor(mode) / 2),
+            Players = Balance(group, teamSize),
         };
 
         db.Matches.Add(match);

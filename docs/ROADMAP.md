@@ -51,6 +51,10 @@ Shipped and used:
   [RATING.md](./RATING.md).
 - **Parties.** Queueing with friends, drafted onto the same team — see
   [PARTY.md](./PARTY.md).
+- **Short-handed matches.** An instance that cannot reliably find ten people can
+  set `Matchmaking:MinCompetitivePlayers` and get a 4v4 or 3v3 after twenty
+  seconds of waiting, rather than a queue that never resolves. Off by default,
+  and always even — see [DEPLOY.md](./DEPLOY.md).
 - **News.** Admins write posts in the dashboard — updates, events and patch notes —
   and every launcher's News screen reads that one feed. A post is live when it is
   saved; its id is a slug made from the title and stays put when the title is
