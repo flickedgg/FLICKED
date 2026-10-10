@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -244,12 +244,28 @@ public class AuthController(
 
        Without this check, /auth/web/login?returnTo=https://evil.example would make
        the backend bounce a freshly signed-in admin to somebody else's site: an open
-       redirect, and a convincing way to phish people with a link that really is yours. */
+       redirect, and a convincing way to phish people with a link that really is yours.
+
+       What comes back is a path, and the caller is expected to put an absolute
+       origin in front of it. Both halves do work: with DashboardUrl() in front,
+       the URL's authority is settled before any of this is read, so the worst a
+       path can reach is a different page of the dashboard. On its own it would be
+       a whole URL, and a browser resolves some of the shapes below against
+       whatever host it likes. Keep the origin, or this stops being a guard. */
     private static string SafePath(string? returnTo)
     {
         if (string.IsNullOrWhiteSpace(returnTo)) return "/";
+
         // one leading slash only: "//evil.example" is a protocol-relative URL
         if (returnTo[0] != '/' || returnTo.StartsWith("//", StringComparison.Ordinal)) return "/";
+
+        /* And not "/\evil.example". Browsers fold a backslash into a forward
+           slash while picking a URL apart, so a path beginning "/\" is read as
+           one beginning "//" and names a host instead of a page. Harmless behind
+           an origin, which is exactly why it is refused here rather than left to
+           the one caller that currently supplies one. */
+        if (returnTo.StartsWith("/\\", StringComparison.Ordinal)) return "/";
+
         return returnTo;
     }
 
