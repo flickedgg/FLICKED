@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 
 namespace Flicked.Api.Services;
@@ -102,7 +102,10 @@ public class MatchStarter(
         if (reply.Contains("already setup", StringComparison.OrdinalIgnoreCase)
          || reply.Contains("cannot load", StringComparison.OrdinalIgnoreCase))
         {
-            log.LogError("Server {Name} refused match {MatchId}: {Reply}", server.Name, match.Id, reply.Trim());
+            /* The reply is a CS2 console's output, which is somebody else's text
+               reaching our log: through Logs.OneLine, like a MatchZy event name. */
+            log.LogError("Server {Name} refused match {MatchId}: {Reply}",
+                server.Name, match.Id, Logs.OneLine(reply, 200));
             return false;
         }
 

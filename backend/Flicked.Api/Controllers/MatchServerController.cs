@@ -141,7 +141,8 @@ public class MatchServerController(
             /* Logged loudly on purpose. MatchZy neither retries nor reports a
                rejected post to anyone who will see it, so a wrong credential is
                otherwise silent at both ends. */
-            log.LogWarning("Event {Event} for match {MatchId} rejected: no valid token", body.Event, matchId);
+            log.LogWarning("Event {Event} for match {MatchId} rejected: no valid token",
+                Logs.OneLine(body.Event), matchId);
             return Unauthorized();
         }
 
@@ -165,7 +166,7 @@ public class MatchServerController(
         if (!sentHere)
         {
             log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which was never sent to it",
-                server!.Name, body.Event, matchId);
+                server!.Name, Logs.OneLine(body.Event), matchId);
             return Forbidden();
         }
 
@@ -178,7 +179,7 @@ public class MatchServerController(
         if (server is not null && holder is null)
         {
             log.LogWarning("Server {Name} reported {Event} for match {MatchId} after its lease ended",
-                server.Name, body.Event, matchId);
+                server.Name, Logs.OneLine(body.Event), matchId);
         }
 
         switch (body.Event)
@@ -246,7 +247,8 @@ public class MatchServerController(
                    and not stored yet. Logged at information rather than debug so
                    that "is the server reporting at all?" is answerable from the
                    ordinary log, which is the first question whenever this breaks. */
-                log.LogInformation("Event {Event} received for match {MatchId}", body.Event, matchId);
+                log.LogInformation("Event {Event} received for match {MatchId}",
+                    Logs.OneLine(body.Event), matchId);
                 break;
         }
 
