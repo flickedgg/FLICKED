@@ -1,4 +1,4 @@
-namespace Flicked.Api.Models;
+﻿namespace Flicked.Api.Models;
 
 /* Where a match is in its life.
 
@@ -40,6 +40,19 @@ public class Match
        this is set, sending players the address means they join whatever map was
        loaded before, which is exactly the bug it exists to prevent. */
     public DateTimeOffset? ServerReadyAt { get; set; }
+
+    /* Which server this match was given to, from the moment it was claimed.
+
+       Not the same fact as GameServer.CurrentMatchId, and both are needed. That
+       one is live state and is cleared the moment the server is released; this
+       one is history and stays.
+
+       The difference is what authorises a result. A server reporting a score has
+       to be the server the match was sent to, and asking that of live state gets
+       the wrong answer twice over: the real host that had its lease swept
+       mid-match no longer holds it, and any other registered server could claim
+       a match it was never given. */
+    public int? ServerId { get; set; }
 
     public List<MatchPlayer> Players { get; set; } = [];
 }

@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,6 +62,7 @@ public class ServerPool(FlickedDbContext db, Rcon rcon, ServerSecrets secrets, I
         if (held is not null)
         {
             held.LeaseUntil = now + ReserveLease;
+            await NoteServerAsync(matchId, held.Id, ct);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
@@ -94,12 +95,26 @@ public class ServerPool(FlickedDbContext db, Rcon rcon, ServerSecrets secrets, I
         server.Status = ServerStatus.Reserved;
         server.CurrentMatchId = matchId;
         server.LeaseUntil = now + ReserveLease;
+        await NoteServerAsync(matchId, server.Id, ct);
 
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
         log.LogInformation("Server {Name} claimed for match {MatchId}", server.Name, matchId);
         return server;
+    }
+
+    /* Record on the match which server it went to, in the same transaction as
+       the claim.
+
+       The match's own copy, because the server's is cleared on release and this
+       is what later says a result came from the server the match was sent to (see
+       Match.ServerId). Saving it with the claim means there is no instant where a
+       server is holding a match that does not know it. */
+    private async Task NoteServerAsync(int matchId, int serverId, CancellationToken ct)
+    {
+        var match = await db.Matches.FirstOrDefaultAsync(m => m.Id == matchId, ct);
+        if (match is not null) match.ServerId = serverId;
     }
 
     /// The players have connected: the lease becomes a match-length one.

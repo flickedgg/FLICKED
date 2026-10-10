@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -148,25 +148,37 @@ public class MatchServerController(
         // With only a match token we still want the server, to release it later.
         server ??= await db.Servers.FirstOrDefaultAsync(s => s.CurrentMatchId == matchId, ct);
 
-        /* Normally the server reporting is the one holding the match. It may not
-           be: if nothing extended the lease, the sweep will have released it while
-           the match was still being played. Throwing the result away in that case
-           would lose a real game that really happened, so a finished match is
-           still saved. Anything else is ignored, since the server is not the
-           authority on a match it no longer holds. */
-        var holdsMatch = server is null || server.CurrentMatchId == matchId;
-        if (!holdsMatch)
-        {
-            log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which it no longer holds",
-                server!.Name, body.Event, matchId);
+        /* Two questions about the server reporting, and they are not the same
+           question. Answering only the second one was a hole: with a token of its
+           own, any registered server in the pool could report a score for a match
+           on somebody else's server, and that result is final because a match is
+           rated once (see MatchResults.FinishAsync).
 
-            if (body.Event is "series_end" or "map_result"
-                && match.Status != MatchStatus.Finished
-                && await SaveResultAsync(match, body, ct))
-            {
-                log.LogInformation("Match {MatchId} finished {A}-{B} (late report)", matchId, match.ScoreA, match.ScoreB);
-            }
-            return Ok();
+           Was this match sent to this server? That authorises the report, and the
+           answer never changes once the server is claimed.
+
+           Is it still holding the match? That decides whether to touch the pool,
+           and it can become false while the match is still being played: if
+           nothing extended the lease, the sweep released the server, and it may
+           by now be reserved for a different match. */
+        var sentHere = server is null || match.ServerId == server.Id;
+        if (!sentHere)
+        {
+            log.LogWarning("Server {Name} reported {Event} for match {MatchId}, which was never sent to it",
+                server!.Name, body.Event, matchId);
+            return Forbidden();
+        }
+
+        /* The server to release when this match ends, or null if the pool has
+           already moved on. A released server is claimable again, so releasing it
+           on the strength of a late report would hand away whatever match it is
+           running now. The report itself still counts: a real game that really
+           happened is saved either way. */
+        var holder = server is not null && server.CurrentMatchId == matchId ? server : null;
+        if (server is not null && holder is null)
+        {
+            log.LogWarning("Server {Name} reported {Event} for match {MatchId} after its lease ended",
+                server.Name, body.Event, matchId);
         }
 
         switch (body.Event)
@@ -178,7 +190,7 @@ public class MatchServerController(
                     match.PlayedAt = DateTimeOffset.UtcNow;
                     await db.SaveChangesAsync(ct);
                     // the five-minute "waiting for players" lease becomes a match-length one
-                    if (server is not null) await pool.MarkHostingAsync(server.Id, ct);
+                    if (holder is not null) await pool.MarkHostingAsync(holder.Id, ct);
                     log.LogInformation("Match {MatchId} is live on {Server}", matchId, server?.Name ?? "an unknown server");
                 }
                 break;
@@ -207,8 +219,8 @@ public class MatchServerController(
                 {
                     log.LogWarning("Match {MatchId} ended without a map_result; saved the series score only", matchId);
                 }
-                if (server is not null) await pool.ReleaseAsync(server.Id, ct);
-                log.LogInformation("Match {MatchId} is over; {Server} released", matchId, server?.Name ?? "no server");
+                if (holder is not null) await pool.ReleaseAsync(holder.Id, ct);
+                log.LogInformation("Match {MatchId} is over; {Server} released", matchId, holder?.Name ?? "no server");
                 break;
 
             /* Where the player stats actually come from.

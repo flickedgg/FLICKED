@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Flicked.Api.Models;
 namespace Flicked.Api.Data;
 
@@ -212,6 +212,25 @@ public class FlickedDbContext : DbContext
 
         // readable in the database, like the other enums here
         modelBuilder.Entity<Match>().Property(m => m.Status).HasConversion<string>().HasMaxLength(16);
+
+        /* Which server the match was sent to (Match.ServerId).
+
+           Written out by hand because this is the second foreign key between
+           these two tables and it points the other way from GameServer's
+           CurrentMatchId below. Left to convention, EF has two one-ended
+           relationships that look like the two ends of one and pairs them, after
+           which claiming a server quietly overwrites the other column. There is
+           deliberately no navigation property: nothing needs to walk from a match
+           to a server, and the one that exists is what invites the pairing.
+
+           SetNull, not Cascade: deleting a server must not delete the matches it
+           hosted. Those rows are the history and the ratings that came out of
+           it. */
+        modelBuilder.Entity<Match>()
+            .HasOne<GameServer>()
+            .WithMany()
+            .HasForeignKey(m => m.ServerId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<Match>().HasData(
             new Match { Id = 48213, Map = "de_mirage",  ScoreA = 13, ScoreB = 9,  PlayedAt = new DateTimeOffset(2026, 9, 21, 18, 40, 0, TimeSpan.Zero), Status = MatchStatus.Finished },

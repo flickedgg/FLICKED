@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -219,6 +219,9 @@ public class AdminServersController(
         server.Status = ServerStatus.Reserved;
         server.CurrentMatchId = match.Id;
         server.LeaseUntil = DateTimeOffset.UtcNow + ServerPool.ReserveLease;
+        // The match's own record of where it was sent, which is what authorises
+        // the result coming back (see Match.ServerId). ClaimAsync does the same.
+        match.ServerId = server.Id;
         await db.SaveChangesAsync(ct);
 
         var command = $"matchzy_loadmatch_url \"{configUrl}\" \"{MatchServerController.ConfigTokenHeader}\" \"{configToken}\"";

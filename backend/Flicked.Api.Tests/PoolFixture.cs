@@ -1,4 +1,4 @@
-using Flicked.Api.Data;
+﻿using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Flicked.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -272,8 +272,12 @@ public class PoolFixture : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
+    /* A registered server. `token` is its plaintext credential, for a test that
+       has to make a call as that server; only the hash is stored, so a test
+       cannot recover one it did not choose. */
     public async Task<GameServer> AddServerAsync(string name, ServerStatus status = ServerStatus.Idle,
-                                                 DateTimeOffset? lastSeen = null, bool enabled = true)
+                                                 DateTimeOffset? lastSeen = null, bool enabled = true,
+                                                 string? token = null)
     {
         await using var db = NewContext();
         var server = new GameServer
@@ -286,7 +290,7 @@ public class PoolFixture : IAsyncLifetime
             IsEnabled = enabled,
             LastSeenAt = lastSeen ?? DateTimeOffset.UtcNow,
             RconPasswordEncrypted = "not-used-here",
-            TokenHash = Secrets.Hash(Guid.NewGuid().ToString()),
+            TokenHash = Secrets.Hash(token ?? Guid.NewGuid().ToString()),
             CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Servers.Add(server);
