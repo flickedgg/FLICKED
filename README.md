@@ -75,7 +75,7 @@ The *Known gaps* section of [docs/ROADMAP.md](./docs/ROADMAP.md) is a list of wh
 is wrong today, if you want somewhere to start.
 
 ## Documentation
-
+Explore the [Documentation Website](https://flickedgg.github.io/FLICKED-docs/) for full guides, or dive straight into the core references below:
 | Document | What it answers |
 |---|---|
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | How the pieces fit together, with diagrams of every system |
