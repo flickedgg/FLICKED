@@ -246,28 +246,28 @@ public class AuthController(
        the backend bounce a freshly signed-in admin to somebody else's site: an open
        redirect, and a convincing way to phish people with a link that really is yours.
 
-       What comes back is a path, and the caller is expected to put an absolute
-       origin in front of it. Both halves do work: with DashboardUrl() in front,
+       IsLocalUrl is what decides, rather than a version of it written here. The
+       shapes that have to be refused are more interesting than they look - an
+       absolute URL, a protocol-relative "//host", and "/\host", which a browser
+       folds into the second while picking a URL apart - and ASP.NET Core already
+       answers exactly this question, on a path everyone else's sign-in flow uses
+       too. A guard this small is still a guard, and the framework's is the one
+       that gets corrected when somebody finds the next shape.
+
+       The leading slash is ours to insist on: IsLocalUrl also accepts "~/page",
+       which is a path to MVC and nonsense once an origin is concatenated in front
+       of it.
+
+       And that origin is the other half of this. With DashboardUrl() in front,
        the URL's authority is settled before any of this is read, so the worst a
-       path can reach is a different page of the dashboard. On its own it would be
-       a whole URL, and a browser resolves some of the shapes below against
-       whatever host it likes. Keep the origin, or this stops being a guard. */
-    private static string SafePath(string? returnTo)
-    {
-        if (string.IsNullOrWhiteSpace(returnTo)) return "/";
-
-        // one leading slash only: "//evil.example" is a protocol-relative URL
-        if (returnTo[0] != '/' || returnTo.StartsWith("//", StringComparison.Ordinal)) return "/";
-
-        /* And not "/\evil.example". Browsers fold a backslash into a forward
-           slash while picking a URL apart, so a path beginning "/\" is read as
-           one beginning "//" and names a host instead of a page. Harmless behind
-           an origin, which is exactly why it is refused here rather than left to
-           the one caller that currently supplies one. */
-        if (returnTo.StartsWith("/\\", StringComparison.Ordinal)) return "/";
-
-        return returnTo;
-    }
+       returnTo can reach is a different page of the dashboard. Keep the origin,
+       or a guard on the shape of a path stops being enough. */
+    private string SafePath(string? returnTo) =>
+        !string.IsNullOrWhiteSpace(returnTo)
+        && Url.IsLocalUrl(returnTo)
+        && returnTo[0] == '/'
+            ? returnTo
+            : "/";
 
     private string DashboardUrl() =>
         (config["Dashboard:Url"] ?? config["FLICKED_DASHBOARD_URL"] ?? "http://localhost:3000").TrimEnd('/');

@@ -1,8 +1,11 @@
-using Flicked.Api.Controllers;
+﻿using Flicked.Api.Controllers;
 using Flicked.Api.Data;
 using Flicked.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,7 +43,9 @@ public class SafeRedirectTests
         var db = new FlickedDbContext(
             new DbContextOptionsBuilder<FlickedDbContext>().UseNpgsql("Host=not-connected").Options);
 
-        return new AuthController(
+        var http = new DefaultHttpContext();
+
+        var controller = new AuthController(
             db,
             new SteamOpenId(new HttpClient(), NullLogger<SteamOpenId>.Instance),
             new SteamProfile(new HttpClient(), config, NullLogger<SteamProfile>.Instance),
@@ -48,6 +53,14 @@ public class SafeRedirectTests
             new CurrentPlayer(db, new HttpContextAccessor { HttpContext = new DefaultHttpContext() }),
             config,
             NullLogger<AuthController>.Instance);
+
+        /* SafePath asks IUrlHelper whether a returnTo is a local path, so the
+           controller needs one. Assigned rather than resolved through
+           RequestServices, which is the only part of a real request this needs. */
+        controller.Url = new UrlHelper(
+            new ActionContext(http, new RouteData(), new ActionDescriptor()));
+
+        return controller;
     }
 
     /* The returnTo that survived, read back out of the sign-in URL.
@@ -78,6 +91,9 @@ public class SafeRedirectTests
     // not a path at all
     [InlineData("\\\\evil.example")]
     [InlineData("javascript:alert(1)")]
+    /* IsLocalUrl accepts this one and we do not: a tilde path means something to
+       MVC and nothing at all once an origin is concatenated in front of it. */
+    [InlineData("~/servers")]
     [InlineData("")]
     [InlineData(null)]
     public void Anything_that_is_not_a_path_on_the_dashboard_becomes_the_front_page(string? returnTo) =>
