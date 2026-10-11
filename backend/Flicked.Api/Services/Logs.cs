@@ -1,4 +1,4 @@
-namespace Flicked.Api.Services;
+﻿namespace Flicked.Api.Services;
 
 /* Putting somebody else's text in our log.
 
@@ -30,8 +30,21 @@ public static class Logs
     {
         if (string.IsNullOrEmpty(value)) return "";
 
-        var kept = value.Where(c => !char.IsControl(c)).ToArray();
-        var clean = new string(kept).Trim();
+        /* Line endings first, and by that name rather than by hand.
+
+           There are more of them than a carriage return and a line feed: a form
+           feed, a next line, and the Unicode line and paragraph separators all
+           end a line somewhere that reads this, and those last two are not
+           control characters, so the filter below would wave them through.
+           ReplaceLineEndings knows the whole list, which is the argument for
+           calling it rather than naming the two everybody remembers. */
+        var oneLine = value.ReplaceLineEndings("");
+
+        /* Then the rest of the control characters. None of them belong in an
+           event name or a console reply, and a reader loses nothing by their
+           absence. ESC is the one that matters: a terminal reads what follows it
+           as an instruction rather than as text. */
+        var clean = new string(oneLine.Where(c => !char.IsControl(c)).ToArray()).Trim();
 
         return clean.Length <= max ? clean : string.Concat(clean.AsSpan(0, max), "…");
     }

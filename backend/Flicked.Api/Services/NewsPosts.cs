@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Flicked.Api.Data;
 using Flicked.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +51,8 @@ public class NewsPosts(FlickedDbContext db, ILogger<NewsPosts> log)
         db.News.Add(post);
         await db.SaveChangesAsync(ct);
 
-        log.LogInformation("News post {Id} published ({Category})", post.Id, post.Category);
+        // The id is a slug this made itself; the category is whatever was typed.
+        log.LogInformation("News post {Id} published ({Category})", post.Id, Logs.OneLine(post.Category));
         return post;
     }
 

@@ -91,7 +91,8 @@ public class AdminServersController(
 
         db.Servers.Add(server);
         await db.SaveChangesAsync(ct);
-        log.LogInformation("Server {Name} ({Host}:{Port}) registered", server.Name, server.Host, server.Port);
+        log.LogInformation("Server {Name} ({Host}:{Port}) registered",
+            Logs.OneLine(server.Name), Logs.OneLine(server.Host), server.Port);
 
         return Ok(new { server = View(server), token });
     }
