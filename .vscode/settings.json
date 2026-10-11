@@ -1,0 +1,111 @@
+{
+  // ---------------------------------------------------------------------------
+  // The one that matters most: .claude/worktrees holds whole copies of this
+  // repository, left behind by agent runs. Without excluding them, every
+  // language server does the work three times over - 9 tsconfigs instead of 3,
+  // 3 Cargo workspaces instead of 1, 13 csproj/slnx instead of 5 - on two
+  // copies nobody is editing. They are already in .gitignore; this is the same
+  // decision told to the editor.
+  // ---------------------------------------------------------------------------
+  "files.exclude": {
+    "**/.claude/worktrees": true,
+    "**/.vs": true,
+    "**/target": true
+  },
+
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.claude/**": true,
+    "**/.vs/**": true,
+    "**/node_modules/**": true,
+    "**/node_modules/*/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.next/**": true,
+    "**/target/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true
+  },
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/.claude": true,
+    "**/.vs": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.next": true,
+    "**/target": true,
+    "**/bin": true,
+    "**/obj": true
+  },
+  "search.followSymlinks": false,
+
+  // ---------------------------------------------------------------------------
+  // rust-analyzer. Every default here is the expensive one, and this is a single
+  // crate, so narrowing them costs nothing in what gets reported.
+  // ---------------------------------------------------------------------------
+
+  // Say which crate, rather than letting it go looking. With the worktrees
+  // hidden there is one, but naming it skips the scan either way.
+  "rust-analyzer.linkedProjects": ["launcher/src-tauri/Cargo.toml"],
+
+  /* Its own build directory, and the real fix for the worst of this.
+     Sharing ./target with `npm run tauri dev` means the two queue behind one
+     cargo lock: a save triggers a check, the check holds the lock, the dev
+     build waits and then redoes work. Separate directories, no contention. */
+  "rust-analyzer.cargo.targetDir": true,
+
+  /* Check the crate, not the world. There is one crate and no test, bench or
+     example target in it, so nothing is lost by not checking them. */
+  "rust-analyzer.check.workspace": false,
+  "rust-analyzer.cargo.allTargets": false,
+  "rust-analyzer.check.allTargets": false,
+
+  /* Priming is the startup burst: it indexes every dependency up front, on
+     every core. Off, the same work happens as it becomes needed instead. */
+  "rust-analyzer.cachePriming.enable": false,
+
+  // 28 cores here, and it will use all of them given the chance.
+  "rust-analyzer.numThreads": 8,
+
+  "rust-analyzer.files.exclude": [
+    ".claude",
+    "launcher/dist",
+    "launcher/node_modules",
+    "launcher/src-tauri/target"
+  ],
+
+  /* Not turned off on purpose: Tauri's commands are proc macros, and without
+     these every invoke handler reads as an error. procMacro.enable stays true. */
+
+  // ---------------------------------------------------------------------------
+  // C#. The diagnostics scopes already default to openFiles, so they are pinned
+  // rather than changed - a future default of fullSolution would analyse the
+  // whole backend on every keystroke.
+  // ---------------------------------------------------------------------------
+  "dotnet.defaultSolution": "backend/Flicked.slnx",
+  "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "openFiles",
+  "dotnet.backgroundAnalysis.compilerDiagnosticsScope": "openFiles",
+
+  // ---------------------------------------------------------------------------
+  // TypeScript and ESLint, across three Node projects.
+  // ---------------------------------------------------------------------------
+
+  /* Stop fetching and indexing @types for packages that ship their own. Both
+     Next apps and the launcher are typed already. */
+  "typescript.disableAutomaticTypeAcquisition": true,
+
+  /* On type, this lints three projects on every keystroke. On save is the same
+     feedback a moment later for a fraction of the work, and `mode: auto` keeps
+     each project resolving its own config instead of the repository root. */
+  "eslint.run": "onSave",
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+
+  "typescript.tsc.autoDetect": "off",
+  "npm.autoDetect": "off",
+  "task.autoDetect": "off",
+  "git.autorefresh": false
+}
